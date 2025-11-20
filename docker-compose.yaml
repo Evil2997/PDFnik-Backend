@@ -4,13 +4,18 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: pdf-service
+    volumes:
+      - files_storage:/data_files_storage
     env_file:
       - .env
-    environment:
-        RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672//
     command: ["python", "main.py"]
+
+volumes:
+  files_storage:
+    name: files_storage
+    external: true
 
 networks:
   default:
-    external: true
     name: shared-net
+    external: true

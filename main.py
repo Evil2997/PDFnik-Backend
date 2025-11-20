@@ -1,21 +1,21 @@
+# main_app/main.py (PDF-СЕРВИС)
 import asyncio
-import base64
 import pathlib
 
 import uvicorn
 from fastapi import FastAPI
 
+from main_app.contracts import PdfOrder, TextItem, ImageItem, BotDocument
 from main_app.work_with_pdf.actions.generate_pdf_path import generate_pdf_path
-from main_app.contracts import PdfOrder, TextItem, ImageItem
 from main_app.work_with_pdf.create_pdf import create_pdf
-from main_app.main_constants import router, IMAGES_DIR
+from main_app.main_constants import router, FILES_ROOT
 
 app = FastAPI()
 
 
 @router.subscriber("orders")
 async def process(data: dict):
-    # 1. Валидируем вход через Pydantic
+    # 1. Валидация входящих данных
     order = PdfOrder.model_validate(data)
 
     chat_id = order.chat_id
@@ -24,52 +24,41 @@ async def process(data: dict):
     text_parts = [item.text for item in order.items if isinstance(item, TextItem)]
     image_items = [item for item in order.items if isinstance(item, ImageItem)]
 
-    # Склеиваем все тексты в одну “простыню”.
-    # При желании потом можно сделать более умно: текст между картинками и т.д.
     user_text = "\n\n".join(text_parts) if text_parts else None
 
-    image_paths: list[pathlib.Path] = []
-    pdf_path: pathlib.Path | None = None
+    # 3. Строим пути к картинкам из storage_key
+    image_paths: list[pathlib.Path] = [
+        FILES_ROOT / img.storage_key for img in image_items
+    ]
 
-    try:
-        # 3. Декодируем и сохраняем все картинки
-        for img in image_items:
-            img_bytes = base64.b64decode(img.content_b64)
-            path = IMAGES_DIR / img.filename
-            path.write_bytes(img_bytes)
-            image_paths.append(path)
+    pdf_path: pathlib.Path = generate_pdf_path(chat_id)
 
-        # 4. Генерим PDF
-        pdf_path = generate_pdf_path(chat_id)
+    # 5. Запускаем генерацию PDF в отдельном треде
+    loop = asyncio.get_running_loop()
+    await loop.run_in_executor(
+        None,
+        create_pdf,
+        user_text,
+        image_paths,
+        pdf_path,
+    )
 
-        loop = asyncio.get_running_loop()
-        await loop.run_in_executor(
-            None,
-            create_pdf,
-            user_text,
-            image_paths,
-            pdf_path,
-        )
+    # 6. storage_key для PDF — относительный путь от FILES_ROOT
+    pdf_storage_key = pdf_path.relative_to(FILES_ROOT).as_posix()
 
-        # 5. Читаем PDF, кодируем и шлём обратно в bot_documents
-        pdf_bytes = pdf_path.read_bytes()
-        pdf_b64 = base64.b64encode(pdf_bytes).decode("utf-8")
+    doc = BotDocument(
+        chat_id=chat_id,
+        filename=pdf_path.name,
+        storage_key=pdf_storage_key,
+    )
 
-        await router.broker.publish(
-            message={
-                "chat_id": chat_id,
-                "filename": pdf_path.name,
-                "pdf_b64": pdf_b64,
-            },
-            queue="bot_documents",
-        )
+    # 7. Отправляем только метаданные в очередь bot_documents
+    await router.broker.publish(
+        message=doc.model_dump(),
+        queue="bot_documents",
+    )
 
-    finally:
-        # Очищаем все файлы, что мигрировали между микросервисами
-        for p in image_paths:
-            p.unlink(missing_ok=True)
-        if pdf_path is not None:
-            pdf_path.unlink(missing_ok=True)
+    # 8. НИЧЕГО не удаляем — файлы чистит отдельный cleaner
 
 
 @router.post("/order")

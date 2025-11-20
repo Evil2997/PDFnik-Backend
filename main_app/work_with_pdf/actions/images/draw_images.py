@@ -44,15 +44,6 @@ def draw_images(
 
     any_drawn = False
 
-    def _log_error(msg: str, exc: Optional[BaseException] = None) -> None:
-        if logger is not None:
-            logger.error(msg, exc_info=exc is not None)
-        else:
-            if exc:
-                print(f"[draw_images] ERROR: {msg}: {exc}")
-            else:
-                print(f"[draw_images] ERROR: {msg}")
-
     for idx, img_path in enumerate(paths):
         try:
             img_path = Path(img_path)
@@ -123,7 +114,7 @@ def draw_images(
             any_drawn = True
 
         except Exception as exc:  # noqa: BLE001
-            _log_error(f"Не удалось обработать изображение: {img_path}", exc)
+            print(f"Не удалось обработать изображение: {img_path}", exc)
             continue
 
     return any_drawn
