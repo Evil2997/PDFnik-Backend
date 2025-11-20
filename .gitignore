@@ -1,0 +1,7 @@
+.env
+
+/images_backend
+/images_backend/**
+
+/output_dir
+/output_dir/**
