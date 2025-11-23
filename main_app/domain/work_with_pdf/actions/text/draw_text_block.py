@@ -1,7 +1,7 @@
 from reportlab.pdfgen import canvas
 
-from main_app.work_with_pdf.actions.text.wrap_by_width import wrap_by_width
-from main_app.work_with_pdf.models.pdf_layout import PdfLayout
+from main_app.domain.work_with_pdf.actions.text.wrap_by_width import wrap_by_width
+from main_app.domain.work_with_pdf.models.pdf_layout import PdfLayout
 
 
 def draw_text_block(

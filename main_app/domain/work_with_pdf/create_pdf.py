@@ -1,20 +1,16 @@
-import logging
 from pathlib import Path
-from textwrap import wrap
-from typing import Iterable, Optional, Sequence
+from typing import Iterable, Optional
 
-from PIL import Image, ImageOps
 from reportlab.lib.pagesizes import A4
-from reportlab.lib.utils import ImageReader
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.pdfgen import canvas
 
-from main_app.main_constants import FONT_TYPE, FONT_PATH
-from main_app.work_with_pdf.actions.images.draw_images import draw_images
-from main_app.work_with_pdf.actions.text.draw_text_block import draw_text_block
-from main_app.work_with_pdf.models.image_render_options import ImageRenderOptions
-from main_app.work_with_pdf.models.pdf_layout import PdfLayout
+from main_app.core.constants import FONT_TYPE, FONT_PATH
+from main_app.domain.work_with_pdf.actions.images.draw_images import draw_images
+from main_app.domain.work_with_pdf.actions.text.draw_text_block import draw_text_block
+from main_app.domain.work_with_pdf.models.image_render_options import ImageRenderOptions
+from main_app.domain.work_with_pdf.models.pdf_layout import PdfLayout
 
 pdfmetrics.registerFont(TTFont(FONT_TYPE, FONT_PATH))
 
@@ -62,7 +58,6 @@ def create_pdf(
             margin_bottom=layout.bottom_margin,
             start_new_page=has_content,
             options=options,
-            logger=None,  # сюда можно передать свой logging.Logger
         )
         has_content = has_content or images_drawn
 

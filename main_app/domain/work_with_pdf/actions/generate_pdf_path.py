@@ -2,7 +2,7 @@ import hashlib
 import pathlib
 import time
 
-from main_app.main_constants import PDF_OUTPUT_DIR
+from main_app.core.constants import PDF_OUTPUT_DIR
 
 
 def generate_pdf_path(chat_id: int) -> pathlib.Path:

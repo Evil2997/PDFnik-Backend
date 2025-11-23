@@ -1,19 +1,12 @@
-# main_app/main_constants.py (PDF-СЕРВИС)
-
 import pathlib
 from typing import Final
 
-from faststream.rabbit import RabbitBroker
-from faststream.rabbit.fastapi import RabbitRouter
+from main_app.core.settings import settings
 
-from main_app.settings import settings
+MAIN_DIR: Final[pathlib.Path] = pathlib.Path(__file__).resolve().parents[2]
 
-MAIN_DIR: Final[pathlib.Path] = pathlib.Path(__file__).resolve().parents[1]
-
-RABBITMQ_URL = settings.RABBITMQ_URL
-
-broker = RabbitBroker(RABBITMQ_URL)
-router = RabbitRouter(RABBITMQ_URL)
+# просто строка, без создания брокера/роутера
+RABBITMQ_URL: Final[str] = settings.RABBITMQ_URL
 
 # Корень общего файлового хранилища (тот же путь, что у бота)
 FILES_ROOT: Final[pathlib.Path] = pathlib.Path("/data_files_storage")
@@ -25,4 +18,4 @@ PDF_OUTPUT_DIR.mkdir(exist_ok=True)
 
 # Пути к шрифтам и т.п.
 FONT_PATH: Final[pathlib.Path] = MAIN_DIR / "fonts" / "dejavu" / "DejaVuSans.ttf"
-FONT_TYPE = "DejaVuSans"
+FONT_TYPE: Final[str] = "DejaVuSans"
