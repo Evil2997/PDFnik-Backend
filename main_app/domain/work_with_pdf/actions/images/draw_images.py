@@ -1,4 +1,3 @@
-import logging
 from pathlib import Path
 from typing import Iterable, Sequence, Optional
 
@@ -6,6 +5,7 @@ from PIL import Image, ImageOps
 from reportlab.lib.utils import ImageReader
 from reportlab.pdfgen import canvas
 
+from main_app.core.logger import logger
 from main_app.domain.work_with_pdf.models.image_render_options import ImageRenderOptions
 
 
@@ -113,7 +113,7 @@ def draw_images(
             any_drawn = True
 
         except Exception as exc:  # noqa: BLE001
-            print(f"Не удалось обработать изображение: {img_path}", exc)
+            logger.error(f"Failed to process image: {img_path}", exc)
             continue
 
     return any_drawn
