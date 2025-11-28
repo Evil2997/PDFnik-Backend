@@ -1,6 +1,6 @@
 # main_app/rabbitmq/pdf_orders.py
 from faststream.rabbit.fastapi import RabbitRouter
-from main_app.domain.contracts import PdfOrder
+from pdfnik_contracts.pdf_content import PdfOrder
 from main_app.domain.pdf.service import generate_pdf_for_order
 
 

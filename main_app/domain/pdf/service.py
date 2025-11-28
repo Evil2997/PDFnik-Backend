@@ -3,7 +3,8 @@
 import asyncio
 import pathlib
 
-from main_app.domain.contracts import PdfOrder, TextItem, ImageItem, BotDocument
+from pdfnik_contracts.pdf_content import PdfOrder, BotDocument, PdfTextItem, PdfImageItem
+
 from main_app.core.constants import FILES_ROOT
 from main_app.domain.work_with_pdf.actions.generate_pdf_path import generate_pdf_path
 from main_app.domain.work_with_pdf.create_pdf import create_pdf
@@ -18,8 +19,8 @@ async def generate_pdf_for_order(order: PdfOrder) -> BotDocument:
     chat_id = order.chat_id
 
     # 1. Собираем текст и картинки из заказа
-    text_parts = [item.text for item in order.items if isinstance(item, TextItem)]
-    image_items = [item for item in order.items if isinstance(item, ImageItem)]
+    text_parts = [item.text for item in order.items if isinstance(item, PdfTextItem)]
+    image_items = [item for item in order.items if isinstance(item, PdfImageItem)]
 
     user_text = "\n\n".join(text_parts) if text_parts else None
 
