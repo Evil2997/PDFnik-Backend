@@ -1,23 +1,90 @@
 services:
+  rabbitmq:
+    image: rabbitmq:4.1.5-management
+    container_name: rabbitmq
+    hostname: rabbitmq
+    ports:
+      - "15672:15672" # UI
+      - "5672:5672"   # AMQP
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    healthcheck:
+      test: [ "CMD", "rabbitmq-diagnostics", "-q", "ping" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - pdfnik_network
+
+  redis:
+    image: redis:7.2-alpine
+    container_name: redis
+    hostname: pdfbot_redis
+    command: [ "redis-server", "--save", "60", "1", "--loglevel", "warning" ]
+    volumes:
+      - redis_data:/redis_data
+    restart: unless-stopped
+    networks:
+      - pdfnik_network
+
   pdf-service:
     build:
-      context: .
-      dockerfile: Dockerfile
+      context: /home/dmitriy/PycharmProjects/FastAPI-Learning
+      dockerfile: /home/dmitriy/PycharmProjects/FastAPI-Learning/Dockerfile
     container_name: pdf-service
     volumes:
       - files_storage:/data_files_storage
     env_file:
       - .env
-#    command: ["python", "main.py"]
+    depends_on:
+      - rabbitmq
+      - redis
+      - telegram-bot
+    #    command: ["python", "main.py"]
     command: ["sh", "-c", "sleep 5 && python main.py"]
     restart: unless-stopped
+    networks:
+      - pdfnik_network
+
+  telegram-bot:
+    build:
+      context: /home/dmitriy/PycharmProjects/Telegram-Bot
+      dockerfile: /home/dmitriy/PycharmProjects/Telegram-Bot/Dockerfile
+    container_name: telegram-bot
+    volumes:
+      - files_storage:/data_files_storage
+    env_file:
+      - .env
+    depends_on:
+      - rabbitmq
+      - redis
+    restart: unless-stopped
+    networks:
+      - pdfnik_network
+
+  files-cleaner:
+    build:
+      context: /home/dmitriy/PycharmProjects/Fast-Cleaner
+      dockerfile: /home/dmitriy/PycharmProjects/Fast-Cleaner/Dockerfile
+    container_name: files-cleaner
+    volumes:
+      - files_storage:/data_files_storage
+    env_file:
+      - .env
+    command: ["python", "main.py"]
+    restart: unless-stopped
+    networks:
+      - pdfnik_network
+
 
 volumes:
+  redis_data:
+    name: redis_data
   files_storage:
     name: files_storage
-    external: true
 
 networks:
-  default:
-    name: shared-net
-    external: true
+  pdfnik_network:
+    name: pdfnik_network
