@@ -1,30 +1,24 @@
 import asyncio
 import pathlib
 
-from pdfnik_contracts.pdf_content import PdfOrder, BotDocument, PdfTextItem, PdfImageItem
+from pdfnik_contracts.pdf_content import BotDocument, PdfOrder, PdfBlock
 
 from main_app.core.constants import FILES_ROOT
 from main_app.core.logger import logger
 from main_app.domain.work_with_pdf.actions.generate_pdf_path import generate_pdf_path
-from main_app.domain.work_with_pdf.create_pdf import create_pdf
+from main_app.domain.work_with_pdf.create_pdf import create_pdf_from_blocks
 
 
 async def generate_pdf_for_order(order: PdfOrder) -> BotDocument:
     chat_id = order.chat_id
     logger.info(f"Start generate_pdf_for_order chat_id={chat_id}")
 
-    text_parts = [item.text for item in order.items if isinstance(item, PdfTextItem)]
-    image_items = [item for item in order.items if isinstance(item, PdfImageItem)]
+    blocks: list[PdfBlock] = order.items
 
     logger.info(
         f"Order content for chat_id={chat_id}: "
-        f"{len(text_parts)} text blocks, {len(image_items)} images"
+        f"{len(blocks)} blocks"
     )
-
-    user_text = "\n\n".join(text_parts) if text_parts else None
-    image_paths: list[pathlib.Path] = [
-        FILES_ROOT / img.storage_key for img in image_items
-    ]
 
     pdf_path: pathlib.Path = generate_pdf_path(chat_id)
     logger.info(f"PDF path for chat_id={chat_id}: {pdf_path}")
@@ -32,9 +26,8 @@ async def generate_pdf_for_order(order: PdfOrder) -> BotDocument:
     loop = asyncio.get_running_loop()
     await loop.run_in_executor(
         None,
-        create_pdf,
-        user_text,
-        image_paths,
+        create_pdf_from_blocks,
+        blocks,
         pdf_path,
     )
 

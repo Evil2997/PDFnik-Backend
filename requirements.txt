@@ -1,11 +1,11 @@
-fastapi==0.121.3
-uvicorn==0.38.0
+fastapi==0.127.1
+uvicorn==0.40.0
 
 pillow==12.0.0
-reportlab==4.4.5
+reportlab==4.4.7
 
 faststream[rabbit]==0.6.3
 
 pydantic==2.11.10
 pydantic-settings==2.11.0
-pdfnik-schemes @ git+https://github.com/Evil2997/PDFnik-Schemes@v1.0.2
+pdfnik-schemes @ git+https://github.com/Evil2997/PDFnik-Schemes@v1.1.01
