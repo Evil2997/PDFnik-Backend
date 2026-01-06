@@ -86,10 +86,10 @@ class PdfLayout(BaseModel):
     )
 
     # --- Page margins ---
-    left_margin: float = Field(default=40, ge=0, description="Левое поле страницы (pt).")
-    right_margin: float = Field(default=40, ge=0, description="Правое поле страницы (pt).")
-    top_margin: float = Field(default=60, ge=0, description="Верхнее поле страницы (pt).")
-    bottom_margin: float = Field(default=40, ge=0, description="Нижнее поле страницы (pt).")
+    left_margin: float = Field(default=60, ge=0, description="Левое поле страницы (pt).")
+    right_margin: float = Field(default=60, ge=0, description="Правое поле страницы (pt).")
+    top_margin: float = Field(default=80, ge=0, description="Верхнее поле страницы (pt).")
+    bottom_margin: float = Field(default=60, ge=0, description="Нижнее поле страницы (pt).")
 
     # --- Computed ---
     @computed_field
