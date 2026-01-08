@@ -272,38 +272,102 @@ def _try_split_price_line(line: str) -> tuple[str, str] | None:
 
 
 def _segment_by_blank_lines(rt: PdfRichText) -> list[PdfRichText]:
+    """
+    Разбиваем на сегменты только по 2+ подряд пустым строкам.
+    1 пустая строка остаётся внутри сегмента (нужно для “воздушных” списков).
+    """
     lines = _split_richtext_lines(rt)
+
     segments: list[list[PdfRichText]] = []
     current: list[PdfRichText] = []
+    blank_run = 0
 
     for ln in lines:
-        if ln.text.strip() == "":
-            if current:
-                segments.append(current)
+        is_blank = (ln.text.strip() == "")
+        if is_blank:
+            blank_run += 1
+            current.append(ln)  # сохраняем 1 пустую строку в сегменте
+            if blank_run >= 2:
+                # два пустых подряд — фиксируем сегмент
+                # убираем хвостовые пустые строки
+                while current and current[-1].text.strip() == "":
+                    current.pop()
+                if current:
+                    segments.append(current)
                 current = []
-            else:
-                # последовательные пустые строки — просто пропускаем
-                continue
-        else:
-            current.append(ln)
+                blank_run = 0
+            continue
 
+        blank_run = 0
+        current.append(ln)
+
+    # tail
+    while current and current[-1].text.strip() == "":
+        current.pop()
     if current:
         segments.append(current)
 
     return [_join_richtext_lines(seg) for seg in segments]
+
+def _looks_like_field_line(s: str) -> bool:
+    t = s.strip()
+    if not t:
+        return False
+    # "Kundennummer: 123", "Betreff: ..."
+    # двоеточие не в самом конце и не слишком далеко
+    colon = t.find(":")
+    if colon == -1:
+        return False
+    if colon == len(t) - 1:
+        return True  # "Zu Punkt 1:" тоже поле/заголовок, точно не list-item
+    return colon <= 25  # поле обычно короткое слева
+
+
+_SIGNATURE_MARKERS = (
+    "mit freundlichen grüßen",
+    "freundliche grüße",
+    "mit freundlichem gruß",
+    "hochachtungsvoll",
+    "unterschrift",
+)
+
+def _is_signature_segment(seg: PdfRichText) -> bool:
+    t = seg.text.strip().lower()
+    if not t:
+        return False
+    # подпись обычно ближе к концу, но мы не знаем позицию → просто по маркерам
+    if any(m in t for m in _SIGNATURE_MARKERS):
+        return True
+    # если сегмент 2–4 коротких строк и есть дата/город
+    lines = [x.strip() for x in seg.text.split("\n") if x.strip()]
+    if 2 <= len(lines) <= 4:
+        if any(re.search(r"\b\d{1,2}\.\d{1,2}\.\d{4}\b", ln) for ln in lines):
+            return True
+    return False
 
 
 def _classify_segment(seg: PdfRichText) -> str:
     """
     returns: "heading" | "price_table" | "list" | "paragraph"
     """
-    lines = seg.text.split("\n")
+    # 0) подпись никогда не list
+    if _is_signature_segment(seg):
+        return "paragraph"
+
+    raw_lines = seg.text.split("\n")
+    lines = [ln for ln in raw_lines if ln.strip() != ""]
+
     if len(lines) == 1:
         if _is_heading(seg):
             return "heading"
         return "paragraph"
 
-    # price_table: большинство строк похоже на "name — price"
+    # 1) field-block: много строк с двоеточием → это не список
+    field_hits = sum(1 for ln in lines if _looks_like_field_line(ln))
+    if field_hits >= max(2, int(0.6 * len(lines))):
+        return "paragraph"
+
+    # 2) price_table
     price_hits = 0
     for ln in lines:
         if _try_split_price_line(ln) is not None:
@@ -311,21 +375,31 @@ def _classify_segment(seg: PdfRichText) -> str:
     if price_hits >= max(2, int(0.6 * len(lines))):
         return "price_table"
 
-    # list: большинство строк “короткие” или с буллетом/нумерацией
+    # 3) list
     list_hits = 0
+    explicit_bullets = 0
     for ln in lines:
-        s = ln.strip()
-        if not s:
-            continue
         if _BULLET_RE.match(ln):
             list_hits += 1
+            explicit_bullets += 1
             continue
-        # эвристика “пункт списка”: короткая строка без точки в конце
+
+        s = ln.strip()
+        # строки-поля / "Zu Punkt 1:" — не пункты списка
+        if _looks_like_field_line(s):
+            continue
+
+        # эвристика пункта
         if len(s) <= 120 and not s.endswith("."):
             list_hits += 1
 
-    if list_hits >= max(2, int(0.7 * len(lines))):
-        return "list"
+    # ✅ важное правило: без явных буллетов список должен иметь >=3 пункта
+    if explicit_bullets == 0:
+        if list_hits >= 3 and list_hits >= int(0.7 * len(lines)):
+            return "list"
+    else:
+        if list_hits >= max(2, int(0.7 * len(lines))):
+            return "list"
 
     return "paragraph"
 
