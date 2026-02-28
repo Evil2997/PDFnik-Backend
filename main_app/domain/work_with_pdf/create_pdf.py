@@ -309,6 +309,7 @@ def _segment_by_blank_lines(rt: PdfRichText) -> list[PdfRichText]:
 
     return [_join_richtext_lines(seg) for seg in segments]
 
+
 def _looks_like_field_line(s: str) -> bool:
     t = s.strip()
     if not t:
@@ -330,6 +331,7 @@ _SIGNATURE_MARKERS = (
     "hochachtungsvoll",
     "unterschrift",
 )
+
 
 def _is_signature_segment(seg: PdfRichText) -> bool:
     t = seg.text.strip().lower()

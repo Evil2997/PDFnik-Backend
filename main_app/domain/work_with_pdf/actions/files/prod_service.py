@@ -1,0 +1,45 @@
+import logging
+from pathlib import Path
+
+from main_app.domain.work_with_pdf.actions.files.models import TranscribeConfig, RunResult
+from main_app.domain.work_with_pdf.actions.files.ports.run_repository import RunRepository
+from main_app.domain.work_with_pdf.actions.files.ports.target_preparer import TargetPreparer
+from main_app.domain.work_with_pdf.actions.files.ports.transcribe_engine import TranscribeEngine
+from main_app.domain.work_with_pdf.actions.files.run_logic import run_once
+
+logger = logging.getLogger(__name__)
+
+
+def transcribe(
+        *,
+        target: str,
+        cfg: TranscribeConfig,
+        out_dir: Path,
+        repo: RunRepository,
+        engine: TranscribeEngine,
+        preparer: TargetPreparer,
+) -> RunResult:
+    out_dir = out_dir.resolve()
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    prepared = preparer.prepare(target, work_dir=out_dir)
+
+    res = run_once(
+        prepared=prepared,
+        cfg=cfg,
+        out_dir=out_dir,
+        repo=repo,
+        engine=engine,
+        bench_naming=False,
+        allow_skip=True,
+    )
+
+    logger.info(
+        "PROD done | cached=%s | txt=%s | wall=%.2fs | rtf=%s | lang=%s",
+        "yes" if res.cached else "no",
+        res.output_txt,
+        res.metrics.wall_time_sec,
+        f"{res.metrics.rtf:.3f}" if res.metrics.rtf is not None else "n/a",
+        res.detected_language or "n/a",
+    )
+    return res

@@ -13,8 +13,11 @@ FILES_ROOT: Final[pathlib.Path] = pathlib.Path("/data_files_storage")
 FILES_ROOT.mkdir(exist_ok=True)
 
 # Подпапка для PDF (не создаём родителей, только саму папку)
-PDF_OUTPUT_DIR: Final[pathlib.Path] = FILES_ROOT / "pdf"
+PDF_OUTPUT_DIR: Final[pathlib.Path] = FILES_ROOT / "pdf_output"
 PDF_OUTPUT_DIR.mkdir(exist_ok=True)
+
+TXT_OUTPUT_DIR: Final[pathlib.Path] = FILES_ROOT / "txt_output"
+TXT_OUTPUT_DIR.mkdir(exist_ok=True)
 
 # Пути к шрифтам и т.п.
 FONT_PATH: Final[pathlib.Path] = MAIN_DIR / "fonts" / "dejavu" / "DejaVuSans.ttf"

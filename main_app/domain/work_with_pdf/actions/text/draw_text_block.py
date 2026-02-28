@@ -5,14 +5,14 @@ from main_app.domain.work_with_pdf.models.pdf_layout import PdfLayout
 
 
 def draw_text_block(
-    c: canvas.Canvas,
-    text: str,
-    layout: PdfLayout,
-    page_width: float,
-    page_height: float,
-    y: float | None,
-    *,
-    block_spacing_lines: float = 1.0,
+        c: canvas.Canvas,
+        text: str,
+        layout: PdfLayout,
+        page_width: float,
+        page_height: float,
+        y: float | None,
+        *,
+        block_spacing_lines: float = 1.0,
 ) -> tuple[bool, float]:
     """
     Рендерит текст, начиная с координаты y (курсор).
