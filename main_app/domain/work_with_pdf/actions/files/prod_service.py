@@ -30,7 +30,6 @@ def transcribe(
         out_dir=out_dir,
         repo=repo,
         engine=engine,
-        bench_naming=False,
         allow_skip=True,
     )
 

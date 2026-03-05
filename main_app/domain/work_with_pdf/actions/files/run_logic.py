@@ -2,7 +2,6 @@ import hashlib
 import logging
 import time
 from pathlib import Path
-from typing import Optional
 
 from main_app.domain.work_with_pdf.actions.files.exceptions import TranscribeError
 from main_app.domain.work_with_pdf.actions.files.models import TranscribeConfig, PreparedTarget, RunResult, RunMetrics
@@ -36,26 +35,13 @@ def make_run_key(target_id: str, cfg: TranscribeConfig, compute_type: str) -> st
     return "|".join(map(str, parts))
 
 
-def txt_name_for_prod(base_name: str) -> str:
-    return f"{base_name}.txt"
-
-
 def _stable_id_from_run_key(run_key: str, n: int = 10) -> str:
     return hashlib.sha1(run_key.encode("utf-8")).hexdigest()[:n]
 
 
-def txt_name_for_bench(base_name: str, run_key: str) -> str:
+def txt_name_for_run(base_name: str, run_key: str) -> str:
     rid = _stable_id_from_run_key(run_key, n=10)
     return f"{base_name}__{rid}.txt"
-
-
-def _to_float(x) -> Optional[float]:
-    try:
-        if x is None or x == "":
-            return None
-        return float(x)
-    except Exception:
-        return None
 
 
 def run_once(
@@ -65,52 +51,33 @@ def run_once(
         out_dir: Path,
         repo: RunRepository,
         engine: TranscribeEngine,
-        bench_naming: bool,
         allow_skip: bool,
 ) -> RunResult:
-    """
-    Один детерминированный прогон:
-    - вычисляет run_key
-    - применяет строгий кеш (txt exists + run_key in repo)
-    - при необходимости исполняет engine.transcribe(...)
-    - пишет артефакт txt
-    - фиксирует результат в repo
-
-    Важно: Domain зависит только от портов (RunRepository, TranscribeEngine),
-    а не от инфраструктуры (sqlite/whisper).
-    """
     out_dir = out_dir.resolve()
     out_dir.mkdir(parents=True, exist_ok=True)
 
     compute = resolve_compute_type(cfg)
     run_key = make_run_key(prepared.target_id, cfg, compute)
 
-    out_txt = out_dir / (
-        txt_name_for_bench(prepared.base_name, run_key)
-        if bench_naming
-        else txt_name_for_prod(prepared.base_name)
-    )
+    out_txt = out_dir / txt_name_for_run(prepared.base_name, run_key)
 
-    # strict cache: txt exists + run_key in DB
     if allow_skip and out_txt.exists():
         row = repo.get(run_key)
         if row:
             metrics = RunMetrics(
-                wall_time_sec=_to_float(row.get("wall_time_sec")) or 0.0,
-                audio_duration_sec=_to_float(row.get("audio_duration_sec"))
-                if row.get("audio_duration_sec") not in (None, "")
-                else prepared.audio_duration_sec,
-                rtf=_to_float(row.get("rtf")),
+                wall_time_sec=0.0,
+                audio_duration_sec=prepared.audio_duration_sec,
+                rtf=None,
             )
             return RunResult(
                 run_key=run_key,
                 target_id=prepared.target_id,
                 output_txt=Path(row.get("output_txt") or out_txt),
-                detected_language=row.get("detected_language") or None,
+                detected_language=None,
                 metrics=metrics,
                 cached=True,
                 status=row.get("status") or "ok",
-                error=row.get("error") or None,
+                error=None,
             )
 
     logger.info("Transcribe | txt=%s", out_txt.name)
@@ -127,26 +94,12 @@ def run_once(
 
         metrics = RunMetrics(wall_time_sec=wall, audio_duration_sec=audio_dur, rtf=rtf)
 
+        # MINIMAL upsert
         repo.upsert(
             {
                 "run_key": run_key,
                 "status": "ok",
-                "error": "",
-                "target_id": prepared.target_id,
                 "output_txt": str(out_txt),
-                "model": cfg.model,
-                "device": cfg.device,
-                "compute_type": compute,
-                "threads": cfg.threads,
-                "workers": cfg.workers,
-                "beam_size": cfg.beam_size,
-                "patience": cfg.patience,
-                "vad": int(cfg.vad),
-                "lang": cfg.lang,
-                "detected_language": detected or "",
-                "wall_time_sec": wall,
-                "audio_duration_sec": audio_dur,
-                "rtf": rtf,
             }
         )
 
@@ -162,36 +115,18 @@ def run_once(
         )
 
     except Exception as e:
-        # Доменные исключения должны оставаться доменными
-        # Инфра-движок может бросить что угодно -> завернём в TranscribeError
         err = e if isinstance(e, TranscribeError) else TranscribeError(str(e))
 
         wall = time.perf_counter() - t0
         audio_dur = prepared.audio_duration_sec
         rtf = (wall / audio_dur) if (audio_dur and audio_dur > 0) else None
-
         metrics = RunMetrics(wall_time_sec=wall, audio_duration_sec=audio_dur, rtf=rtf)
 
         repo.upsert(
             {
                 "run_key": run_key,
                 "status": "failed",
-                "error": str(err),
-                "target_id": prepared.target_id,
                 "output_txt": str(out_txt),
-                "model": cfg.model,
-                "device": cfg.device,
-                "compute_type": compute,
-                "threads": cfg.threads,
-                "workers": cfg.workers,
-                "beam_size": cfg.beam_size,
-                "patience": cfg.patience,
-                "vad": int(cfg.vad),
-                "lang": cfg.lang,
-                "detected_language": "",
-                "wall_time_sec": wall,
-                "audio_duration_sec": audio_dur,
-                "rtf": rtf,
             }
         )
 

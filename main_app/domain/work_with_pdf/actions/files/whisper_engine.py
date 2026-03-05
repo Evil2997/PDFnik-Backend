@@ -4,24 +4,20 @@ from typing import Optional
 
 from faster_whisper import WhisperModel
 
-from voice_to_text__app.domain.models import TranscribeConfig
+from main_app.core.settings import settings
+from main_app.domain.work_with_pdf.actions.files.models import TranscribeConfig
 
 logger = logging.getLogger(__name__)
 
 
 class WhisperEngine:
-    """
-    Управляет lifecycle WhisperModel.
-    Гарантирует:
-    - модель создаётся 1 раз
-    - может переиспользоваться
-    """
-
-    def __init__(self, model_name: str):
-        self.model_name = model_name
+    def __init__(self, model_name: Optional[str] = None):
+        self.model_name = model_name or settings.TRANSCRIBE_MODEL
         self._model: Optional[WhisperModel] = None
         self._device: Optional[str] = None
         self._compute_type: Optional[str] = None
+        self._threads: Optional[int] = None
+        self._workers: Optional[int] = None
 
     def load(self, cfg: TranscribeConfig) -> None:
         compute = cfg.compute_type or (
@@ -29,17 +25,21 @@ class WhisperEngine:
         )
 
         if (
-                self._model
-                and self._device == cfg.device
-                and self._compute_type == compute
+            self._model
+            and self._device == cfg.device
+            and self._compute_type == compute
+            and self._threads == cfg.threads
+            and self._workers == cfg.workers
         ):
             return
 
         logger.info(
-            "Load WhisperModel | model=%s | device=%s | compute=%s",
+            "Load WhisperModel | model=%s | device=%s | compute=%s | thr=%s | wrk=%s",
             self.model_name,
             cfg.device,
             compute,
+            cfg.threads,
+            cfg.workers,
         )
 
         self._model = WhisperModel(
@@ -52,12 +52,10 @@ class WhisperEngine:
 
         self._device = cfg.device
         self._compute_type = compute
+        self._threads = cfg.threads
+        self._workers = cfg.workers
 
-    def transcribe(
-            self,
-            wav_path: Path,
-            cfg: TranscribeConfig,
-    ) -> tuple[str, Optional[str]]:
+    def transcribe(self, wav_path: Path, cfg: TranscribeConfig) -> tuple[str, Optional[str]]:
         if not self._model:
             self.load(cfg)
 
