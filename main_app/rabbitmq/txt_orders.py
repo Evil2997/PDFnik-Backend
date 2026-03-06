@@ -1,7 +1,6 @@
 import asyncio
 import hashlib
 import time
-from pathlib import Path
 from typing import Any, Literal
 
 from faststream.rabbit.fastapi import RabbitRouter
@@ -143,49 +142,6 @@ def _build_cfg(overrides: TxtCfgOverrides | None) -> TranscribeConfig:
     )
 
 
-def _resolve_storage_path(storage_key: str) -> Path:
-    files_root = FILES_ROOT.resolve()
-    abs_path = (files_root / storage_key).resolve()
-
-    try:
-        abs_path.relative_to(files_root)
-    except ValueError as e:
-        raise ValueError(f"storage_key points outside FILES_ROOT: {storage_key}") from e
-
-    return abs_path
-
-
-def _resolve_target(job: TxtTranscribeJob) -> str:
-    if job.target.kind == "url":
-        return job.target.value
-
-    return str(_resolve_storage_path(job.target.value))
-
-
-def _target_id_for_job(job: TxtTranscribeJob) -> str:
-    if job.target.kind == "url":
-        return f"url_{_hash(job.target.value)}"
-
-    abs_path = _resolve_storage_path(job.target.value)
-    return f"file_{_hash(str(abs_path))}"
-
-
-def _run_key_for_job(job: TxtTranscribeJob, cfg: TranscribeConfig) -> str:
-    compute_type = resolve_compute_type(cfg)
-    target_id = _target_id_for_job(job)
-    return make_run_key(target_id, cfg, compute_type)
-
-
-def _persist_txt_result(source_txt_path: Path, job_id: str) -> Path:
-    dst_path = generate_txt_path(job_id).resolve()
-    dst_path.parent.mkdir(parents=True, exist_ok=True)
-
-    text = source_txt_path.read_text(encoding="utf-8")
-    dst_path.write_text(text, encoding="utf-8")
-
-    return dst_path
-
-
 def _extract_reply_from_raw(data: dict[str, Any]) -> TxtReply | None:
     reply = data.get("reply")
     if isinstance(reply, dict) and reply.get("chat_id") is not None:
@@ -205,6 +161,49 @@ def _extract_reply_from_raw(data: dict[str, Any]) -> TxtReply | None:
         )
     except Exception:
         return None
+
+
+def _resolve_storage_path(storage_key: str) -> str:
+    files_root = FILES_ROOT.resolve()
+    abs_path = (files_root / storage_key).resolve()
+
+    try:
+        abs_path.relative_to(files_root)
+    except ValueError as e:
+        raise ValueError(f"storage_key points outside FILES_ROOT: {storage_key}") from e
+
+    return str(abs_path)
+
+
+def _resolve_target(job: TxtTranscribeJob) -> str:
+    if job.target.kind == "url":
+        return job.target.value
+
+    return _resolve_storage_path(job.target.value)
+
+
+def _target_id_for_job(job: TxtTranscribeJob) -> str:
+    if job.target.kind == "url":
+        return f"url_{_hash(job.target.value)}"
+
+    abs_path = _resolve_storage_path(job.target.value)
+    return f"file_{_hash(abs_path)}"
+
+
+def _run_key_for_job(job: TxtTranscribeJob, cfg: TranscribeConfig) -> str:
+    compute_type = resolve_compute_type(cfg)
+    target_id = _target_id_for_job(job)
+    return make_run_key(target_id, cfg, compute_type)
+
+
+def _persist_txt_result(source_txt_path, job_id: str):
+    dst_path = generate_txt_path(job_id).resolve()
+    dst_path.parent.mkdir(parents=True, exist_ok=True)
+
+    text = source_txt_path.read_text(encoding="utf-8")
+    dst_path.write_text(text, encoding="utf-8")
+
+    return dst_path
 
 
 async def _publish_done(router: RabbitRouter, result: TxtDoneResult) -> None:
@@ -292,6 +291,9 @@ def register_txt_consumers(router: RabbitRouter) -> None:
                         preparer=preparer,
                     ),
                 )
+
+                if res.status != "ok":
+                    raise RuntimeError(res.error or f"Transcription failed with status={res.status}")
 
                 final_txt_path = _persist_txt_result(res.output_txt, job.job_id)
                 txt_storage_key = final_txt_path.relative_to(FILES_ROOT.resolve()).as_posix()
