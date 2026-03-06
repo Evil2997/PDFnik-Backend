@@ -1,62 +1,133 @@
-from __future__ import annotations
-
+import asyncio
+import hashlib
 import time
-from typing import Any, Literal, Optional
+from pathlib import Path
+from typing import Any, Literal
 
 from faststream.rabbit.fastapi import RabbitRouter
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from main_app.core.constants import FILES_ROOT, RUNS_DB_PATH, TXT_OUTPUT_DIR
+from main_app.core.constants import FILES_ROOT, RUNS_DB_PATH
 from main_app.core.logger import logger
 from main_app.core.settings import settings
 from main_app.domain.work_with_pdf.actions.files.audio.target_preparer import AudioTargetPreparer
+from main_app.domain.work_with_pdf.actions.files.generate_txt_path import generate_txt_path
 from main_app.domain.work_with_pdf.actions.files.models import TranscribeConfig
 from main_app.domain.work_with_pdf.actions.files.prod_service import transcribe as prod_transcribe
+from main_app.domain.work_with_pdf.actions.files.run_logic import make_run_key, resolve_compute_type
 from main_app.domain.work_with_pdf.actions.files.sqlite.sqlite_repo import SqliteRunRepository
 from main_app.domain.work_with_pdf.actions.files.whisper_engine import WhisperEngine
 
 
 class TxtTarget(BaseModel):
     model_config = ConfigDict(frozen=True)
+
     kind: Literal["storage_key", "url"]
     value: str
 
 
+class TxtReply(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    chat_id: int
+    reply_to_message_id: int | None = None
+
+
+class TxtDelivery(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    source_type: str | None = None
+    mode: str | None = None
+
+
 class TxtCfgOverrides(BaseModel):
     model_config = ConfigDict(frozen=True)
-    model: Optional[str] = None
-    device: Optional[str] = None
-    compute_type: Optional[str] = None
-    threads: Optional[int] = Field(default=None, ge=1)
-    workers: Optional[int] = Field(default=None, ge=1)
-    beam_size: Optional[int] = Field(default=None, ge=1)
-    patience: Optional[float] = Field(default=None, ge=0.0)
-    vad: Optional[bool] = None
-    lang: Optional[str] = None
+
+    model: str | None = None
+    device: str | None = None
+    compute_type: str | None = None
+    threads: int | None = Field(default=None, ge=1)
+    workers: int | None = Field(default=None, ge=1)
+    beam_size: int | None = Field(default=None, ge=1)
+    patience: float | None = Field(default=None, ge=0.0)
+    vad: bool | None = None
+    lang: str | None = None
 
 
 class TxtTranscribeJob(BaseModel):
     job_id: str
-    chat_id: int
-    reply_to_message_id: Optional[int] = None
     target: TxtTarget
-    cfg: Optional[TxtCfgOverrides] = None
+    reply: TxtReply | None = None
+    delivery: TxtDelivery | None = None
+    cfg: TxtCfgOverrides | None = None
     attempt: int = 1
     max_attempts: int = 3
 
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_legacy_payload(cls, data: Any) -> Any:
+        if not isinstance(data, dict):
+            return data
 
-class TxtResult(BaseModel):
+        payload = dict(data)
+
+        if payload.get("target") is None:
+            storage_key = payload.get("storage_key")
+            input_url = payload.get("input_url")
+
+            if storage_key:
+                payload["target"] = {
+                    "kind": "storage_key",
+                    "value": storage_key,
+                }
+            elif input_url:
+                payload["target"] = {
+                    "kind": "url",
+                    "value": input_url,
+                }
+
+        if payload.get("reply") is None:
+            chat_id = payload.get("chat_id")
+            reply_to_message_id = payload.get("reply_to_message_id")
+
+            if chat_id is not None:
+                payload["reply"] = {
+                    "chat_id": chat_id,
+                    "reply_to_message_id": reply_to_message_id,
+                }
+
+        if payload.get("delivery") is None:
+            source_type = payload.get("source_type")
+            mode = payload.get("mode")
+
+            if source_type is not None or mode is not None:
+                payload["delivery"] = {
+                    "source_type": source_type,
+                    "mode": mode,
+                }
+
+        return payload
+
+
+class TxtDoneResult(BaseModel):
     job_id: str
-    chat_id: int
-    status: Literal["ok", "failed"]
-    txt: Optional[dict] = None  # {"storage_key": "..."}
-    cached: bool = False
-    metrics: dict = Field(default_factory=dict)
-    detected_language: Optional[str] = None
-    error: Optional[str] = None
+    status: Literal["ok", "error"]
+    txt_storage_key: str | None = None
+    reply: TxtReply | None = None
+    delivery: TxtDelivery | None = None
+    cached: bool | None = None
+    error: str | None = None
 
 
-def _build_cfg(overrides: Optional[TxtCfgOverrides]) -> TranscribeConfig:
+_inflight_lock_guard = asyncio.Lock()
+_inflight_locks: dict[str, asyncio.Lock] = {}
+
+
+def _hash(text: str) -> str:
+    return hashlib.sha1(text.encode("utf-8")).hexdigest()[:12]
+
+
+def _build_cfg(overrides: TxtCfgOverrides | None) -> TranscribeConfig:
     ov = overrides or TxtCfgOverrides()
 
     return TranscribeConfig(
@@ -72,18 +143,96 @@ def _build_cfg(overrides: Optional[TxtCfgOverrides]) -> TranscribeConfig:
     )
 
 
+def _resolve_storage_path(storage_key: str) -> Path:
+    files_root = FILES_ROOT.resolve()
+    abs_path = (files_root / storage_key).resolve()
+
+    try:
+        abs_path.relative_to(files_root)
+    except ValueError as e:
+        raise ValueError(f"storage_key points outside FILES_ROOT: {storage_key}") from e
+
+    return abs_path
+
+
 def _resolve_target(job: TxtTranscribeJob) -> str:
     if job.target.kind == "url":
         return job.target.value
 
-    # storage_key -> abs path
-    abs_path = (FILES_ROOT / job.target.value).resolve()
-    return str(abs_path)
+    return str(_resolve_storage_path(job.target.value))
+
+
+def _target_id_for_job(job: TxtTranscribeJob) -> str:
+    if job.target.kind == "url":
+        return f"url_{_hash(job.target.value)}"
+
+    abs_path = _resolve_storage_path(job.target.value)
+    return f"file_{_hash(str(abs_path))}"
+
+
+def _run_key_for_job(job: TxtTranscribeJob, cfg: TranscribeConfig) -> str:
+    compute_type = resolve_compute_type(cfg)
+    target_id = _target_id_for_job(job)
+    return make_run_key(target_id, cfg, compute_type)
+
+
+def _persist_txt_result(source_txt_path: Path, job_id: str) -> Path:
+    dst_path = generate_txt_path(job_id).resolve()
+    dst_path.parent.mkdir(parents=True, exist_ok=True)
+
+    text = source_txt_path.read_text(encoding="utf-8")
+    dst_path.write_text(text, encoding="utf-8")
+
+    return dst_path
+
+
+def _extract_reply_from_raw(data: dict[str, Any]) -> TxtReply | None:
+    reply = data.get("reply")
+    if isinstance(reply, dict) and reply.get("chat_id") is not None:
+        try:
+            return TxtReply.model_validate(reply)
+        except Exception:
+            return None
+
+    chat_id = data.get("chat_id")
+    if chat_id is None:
+        return None
+
+    try:
+        return TxtReply(
+            chat_id=int(chat_id),
+            reply_to_message_id=data.get("reply_to_message_id"),
+        )
+    except Exception:
+        return None
+
+
+async def _publish_done(router: RabbitRouter, result: TxtDoneResult) -> None:
+    await router.broker.publish(
+        message=result.model_dump(exclude_none=True),
+        queue="txt.done",
+    )
+
+
+async def _get_or_create_run_lock(run_key: str) -> asyncio.Lock:
+    async with _inflight_lock_guard:
+        lock = _inflight_locks.get(run_key)
+        if lock is None:
+            lock = asyncio.Lock()
+            _inflight_locks[run_key] = lock
+        return lock
+
+
+async def _release_run_lock_if_unused(run_key: str, lock: asyncio.Lock) -> None:
+    async with _inflight_lock_guard:
+        current = _inflight_locks.get(run_key)
+        if current is lock and not lock.locked():
+            _inflight_locks.pop(run_key, None)
 
 
 def register_txt_consumers(router: RabbitRouter) -> None:
     repo = SqliteRunRepository(RUNS_DB_PATH)
-    engine = WhisperEngine()  # model из settings
+    engine = WhisperEngine()
     preparer = AudioTargetPreparer()
 
     @router.subscriber("txt.transcribe")
@@ -93,77 +242,115 @@ def register_txt_consumers(router: RabbitRouter) -> None:
         try:
             job = TxtTranscribeJob.model_validate(data)
         except Exception as e:
-            logger.error(f"[TXT] invalid payload: {e}")
-            await router.broker.publish(
-                message=TxtResult(
-                    job_id=data.get("job_id", "unknown"),
-                    chat_id=int(data.get("chat_id", 0) or 0),
-                    status="failed",
+            logger.error("[TXT] invalid payload: %s", e)
+            await _publish_done(
+                router,
+                TxtDoneResult(
+                    job_id=str(data.get("job_id", "unknown")),
+                    status="error",
                     error=f"Invalid payload: {e}",
-                ).model_dump(),
-                queue="txt.send",
+                    reply=_extract_reply_from_raw(data),
+                ),
             )
             return
 
-        logger.info(f"[TXT] job_id={job.job_id} chat_id={job.chat_id} attempt={job.attempt}/{job.max_attempts}")
+        cfg = _build_cfg(job.cfg)
+        run_key = _run_key_for_job(job, cfg)
+
+        logger.info(
+            "[TXT] received | job_id=%s | target.kind=%s | target.value=%s | run_key=%s | attempt=%s/%s",
+            job.job_id,
+            job.target.kind,
+            job.target.value,
+            run_key,
+            job.attempt,
+            job.max_attempts,
+        )
+
+        lock = await _get_or_create_run_lock(run_key)
+
+        if lock.locked():
+            logger.info(
+                "[TXT] wait in-flight run | job_id=%s | run_key=%s",
+                job.job_id,
+                run_key,
+            )
 
         try:
-            cfg = _build_cfg(job.cfg)
-            target = _resolve_target(job)
+            async with lock:
+                target = _resolve_target(job)
+                loop = asyncio.get_running_loop()
 
-            res = prod_transcribe(
-                target=target,
-                cfg=cfg,
-                out_dir=TXT_OUTPUT_DIR,
-                repo=repo,
-                engine=engine,
-                preparer=preparer,
-            )
+                res = await loop.run_in_executor(
+                    None,
+                    lambda: prod_transcribe(
+                        target=target,
+                        cfg=cfg,
+                        out_dir=generate_txt_path(job.job_id).parent,
+                        repo=repo,
+                        engine=engine,
+                        preparer=preparer,
+                    ),
+                )
 
-            storage_key = res.output_txt.relative_to(FILES_ROOT).as_posix()
-            wall_time = round(time.time() - started, 3)
+                final_txt_path = _persist_txt_result(res.output_txt, job.job_id)
+                txt_storage_key = final_txt_path.relative_to(FILES_ROOT.resolve()).as_posix()
+                wall_time = round(time.time() - started, 3)
 
-            await router.broker.publish(
-                message=TxtResult(
-                    job_id=job.job_id,
-                    chat_id=job.chat_id,
-                    status="ok",
-                    txt={"storage_key": storage_key},
-                    cached=res.cached,
-                    metrics={"wall_time_sec": wall_time},
-                    detected_language=res.detected_language,
-                ).model_dump(),
-                queue="txt.send",
-            )
+                await _publish_done(
+                    router,
+                    TxtDoneResult(
+                        job_id=job.job_id,
+                        status="ok",
+                        txt_storage_key=txt_storage_key,
+                        reply=job.reply,
+                        delivery=job.delivery,
+                        cached=res.cached,
+                    ),
+                )
 
-            logger.info(f"[TXT DONE] job_id={job.job_id} storage_key={storage_key} cached={res.cached}")
-
-        except FileNotFoundError as e:
-            await router.broker.publish(
-                message=TxtResult(
-                    job_id=job.job_id,
-                    chat_id=job.chat_id,
-                    status="failed",
-                    error=f"File not found: {e}",
-                ).model_dump(),
-                queue="txt.send",
-            )
-            logger.error(f"[TXT ERROR] file not found: {e}")
+                logger.info(
+                    "[TXT DONE] job_id=%s | run_key=%s | txt_storage_key=%s | cached=%s | wall=%.3fs",
+                    job.job_id,
+                    run_key,
+                    txt_storage_key,
+                    res.cached,
+                    wall_time,
+                )
 
         except Exception as e:
-            logger.error(f"[TXT ERROR] job_id={job.job_id}: {e}")
+            logger.error(
+                "[TXT ERROR] job_id=%s | run_key=%s | target.kind=%s | target.value=%s | error=%s",
+                job.job_id,
+                run_key,
+                job.target.kind,
+                job.target.value,
+                e,
+            )
 
             if job.attempt < job.max_attempts:
                 next_job = job.model_copy(update={"attempt": job.attempt + 1})
-                await router.broker.publish(message=next_job.model_dump(), queue="txt.transcribe")
-                logger.info(f"[TXT] requeued job_id={job.job_id} attempt={next_job.attempt}/{next_job.max_attempts}")
-            else:
                 await router.broker.publish(
-                    message=TxtResult(
-                        job_id=job.job_id,
-                        chat_id=job.chat_id,
-                        status="failed",
-                        error=str(e),
-                    ).model_dump(),
-                    queue="txt.send",
+                    message=next_job.model_dump(exclude_none=True),
+                    queue="txt.transcribe",
                 )
+                logger.info(
+                    "[TXT] requeued | job_id=%s | run_key=%s | next_attempt=%s/%s",
+                    job.job_id,
+                    run_key,
+                    next_job.attempt,
+                    next_job.max_attempts,
+                )
+                return
+
+            await _publish_done(
+                router,
+                TxtDoneResult(
+                    job_id=job.job_id,
+                    status="error",
+                    error=str(e),
+                    reply=job.reply,
+                ),
+            )
+        finally:
+            await _release_run_lock_if_unused(run_key, lock)
