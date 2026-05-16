@@ -11,7 +11,9 @@ from pdfnik_contracts.pdf_content import (
     PdfHeadingBlock,
     PdfListBlock,
     PdfPriceRow,
-    PdfPriceTableBlock, PdfBlockType, PdfImageBlock,
+    PdfPriceTableBlock,
+    PdfBlockType,
+    PdfImageBlock,
 )
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfbase import pdfmetrics
@@ -42,7 +44,6 @@ def create_pdf_from_blocks(
     layout = PdfLayout()
     c.setFont(layout.font_name, layout.font_size)
 
-    # ✅ КЛЮЧ: превращаем сырой TEXT в структурные блоки
     blocks = normalize_document_blocks(blocks)
 
     has_content = False
@@ -83,7 +84,7 @@ def create_pdf_from_blocks(
                 )
                 has_content = has_content or drawn
 
-            # -------- BACKWARD COMPAT: raw TEXT (если вдруг прилетит) --------
+            # -------- BACKWARD COMPAT: raw TEXT --------
             elif isinstance(block, PdfTextBlock):
                 logger.info("Rendering raw text block (fallback)")
                 drawn, current_y = _draw_paragraph(
@@ -151,7 +152,6 @@ def create_pdf_from_blocks(
 
 def _normalize_text(s: str) -> str:
     s = s.replace("\r\n", "\n").replace("\r", "\n")
-    # убираем хвостовые пробелы в строках (стабильный ввод для парсера)
     s = "\n".join(line.rstrip() for line in s.split("\n"))
     return s
 
@@ -159,7 +159,6 @@ def _normalize_text(s: str) -> str:
 def _slice_richtext(rt: PdfRichText, start: int, end: int) -> PdfRichText:
     """
     Безопасный слайс PdfRichText: сохраняем entities, пересчитываем offset/length.
-    Обрезаем entity по пересечению.
     """
     start = max(0, start)
     end = max(start, end)
@@ -187,10 +186,6 @@ def _slice_richtext(rt: PdfRichText, start: int, end: int) -> PdfRichText:
 
 
 def _split_richtext_lines(rt: PdfRichText) -> list[PdfRichText]:
-    """
-    Split по '\n' с сохранением entities.
-    Возвращает строки БЕЗ '\n' в конце.
-    """
     text = rt.text
     if text == "":
         return [PdfRichText(text="", entities=[])]
@@ -201,15 +196,11 @@ def _split_richtext_lines(rt: PdfRichText) -> list[PdfRichText]:
         if ch == "\n":
             lines.append(_slice_richtext(rt, line_start, i))
             line_start = i + 1
-    # tail
     lines.append(_slice_richtext(rt, line_start, len(text)))
     return lines
 
 
 def _join_richtext_lines(lines: list[PdfRichText]) -> PdfRichText:
-    """
-    Склеивает lines через '\n'. Entities сдвигаются.
-    """
     out_text_parts: list[str] = []
     out_entities: list[PdfTextEntity] = []
     offset = 0
@@ -239,7 +230,7 @@ _PRICE_RE = re.compile(
     r"(?i)(?:€|eur|euro)?\s*\d{1,3}(?:[ .]\d{3})*(?:[.,]\d{2})?\s*(?:€|eur|euro)?"
 )
 
-_SEP_RE = re.compile(r"\s+(?:—|–|-|:)\s+")  # "name — price", "name - price", "name: price"
+_SEP_RE = re.compile(r"\s+(?:—|–|-|:)\s+")
 
 _BULLET_RE = re.compile(r"^\s*(?:[•\-\*\u2013\u2014]|(?:\d+[\.\)]))\s+")
 
@@ -248,16 +239,12 @@ def _is_heading(segment: PdfRichText) -> bool:
     t = segment.text.strip()
     if not t:
         return False
-    # коротко, без точки, часто заканчивается ":" и перед "структурой"
     if len(t) <= 60 and not t.endswith(".") and (t.endswith(":") or t.isupper()):
         return True
     return False
 
 
 def _try_split_price_line(line: str) -> tuple[str, str] | None:
-    """
-    Возвращает (name, price) или None
-    """
     if not _PRICE_RE.search(line):
         return None
     parts = _SEP_RE.split(line, maxsplit=1)
@@ -274,7 +261,7 @@ def _try_split_price_line(line: str) -> tuple[str, str] | None:
 def _segment_by_blank_lines(rt: PdfRichText) -> list[PdfRichText]:
     """
     Разбиваем на сегменты только по 2+ подряд пустым строкам.
-    1 пустая строка остаётся внутри сегмента (нужно для “воздушных” списков).
+    1 пустая строка остаётся внутри сегмента.
     """
     lines = _split_richtext_lines(rt)
 
@@ -286,10 +273,8 @@ def _segment_by_blank_lines(rt: PdfRichText) -> list[PdfRichText]:
         is_blank = (ln.text.strip() == "")
         if is_blank:
             blank_run += 1
-            current.append(ln)  # сохраняем 1 пустую строку в сегменте
+            current.append(ln)
             if blank_run >= 2:
-                # два пустых подряд — фиксируем сегмент
-                # убираем хвостовые пустые строки
                 while current and current[-1].text.strip() == "":
                     current.pop()
                 if current:
@@ -301,7 +286,6 @@ def _segment_by_blank_lines(rt: PdfRichText) -> list[PdfRichText]:
         blank_run = 0
         current.append(ln)
 
-    # tail
     while current and current[-1].text.strip() == "":
         current.pop()
     if current:
@@ -314,14 +298,12 @@ def _looks_like_field_line(s: str) -> bool:
     t = s.strip()
     if not t:
         return False
-    # "Kundennummer: 123", "Betreff: ..."
-    # двоеточие не в самом конце и не слишком далеко
     colon = t.find(":")
     if colon == -1:
         return False
     if colon == len(t) - 1:
-        return True  # "Zu Punkt 1:" тоже поле/заголовок, точно не list-item
-    return colon <= 25  # поле обычно короткое слева
+        return True
+    return colon <= 25
 
 
 _SIGNATURE_MARKERS = (
@@ -337,10 +319,8 @@ def _is_signature_segment(seg: PdfRichText) -> bool:
     t = seg.text.strip().lower()
     if not t:
         return False
-    # подпись обычно ближе к концу, но мы не знаем позицию → просто по маркерам
     if any(m in t for m in _SIGNATURE_MARKERS):
         return True
-    # если сегмент 2–4 коротких строк и есть дата/город
     lines = [x.strip() for x in seg.text.split("\n") if x.strip()]
     if 2 <= len(lines) <= 4:
         if any(re.search(r"\b\d{1,2}\.\d{1,2}\.\d{4}\b", ln) for ln in lines):
@@ -349,10 +329,7 @@ def _is_signature_segment(seg: PdfRichText) -> bool:
 
 
 def _classify_segment(seg: PdfRichText) -> str:
-    """
-    returns: "heading" | "price_table" | "list" | "paragraph"
-    """
-    # 0) подпись никогда не list
+    """Returns: "heading" | "price_table" | "list" | "paragraph" """
     if _is_signature_segment(seg):
         return "paragraph"
 
@@ -364,20 +341,14 @@ def _classify_segment(seg: PdfRichText) -> str:
             return "heading"
         return "paragraph"
 
-    # 1) field-block: много строк с двоеточием → это не список
     field_hits = sum(1 for ln in lines if _looks_like_field_line(ln))
     if field_hits >= max(2, int(0.6 * len(lines))):
         return "paragraph"
 
-    # 2) price_table
-    price_hits = 0
-    for ln in lines:
-        if _try_split_price_line(ln) is not None:
-            price_hits += 1
+    price_hits = sum(1 for ln in lines if _try_split_price_line(ln) is not None)
     if price_hits >= max(2, int(0.6 * len(lines))):
         return "price_table"
 
-    # 3) list
     list_hits = 0
     explicit_bullets = 0
     for ln in lines:
@@ -385,17 +356,12 @@ def _classify_segment(seg: PdfRichText) -> str:
             list_hits += 1
             explicit_bullets += 1
             continue
-
         s = ln.strip()
-        # строки-поля / "Zu Punkt 1:" — не пункты списка
         if _looks_like_field_line(s):
             continue
-
-        # эвристика пункта
         if len(s) <= 120 and not s.endswith("."):
             list_hits += 1
 
-    # ✅ важное правило: без явных буллетов список должен иметь >=3 пункта
     if explicit_bullets == 0:
         if list_hits >= 3 and list_hits >= int(0.7 * len(lines)):
             return "list"
@@ -414,18 +380,14 @@ def _build_blocks_from_segment(seg: PdfRichText) -> list[PdfBlock]:
 
     if kind == "price_table":
         rows: list[PdfPriceRow] = []
-        # rebuild rows line-by-line as richtext parts (важно для future entities)
         line_rts = _split_richtext_lines(seg)
         for ln_rt in line_rts:
             raw = ln_rt.text
             split = _try_split_price_line(raw)
             if split is None:
-                # деградация: если строка “не распарсилась” — кидаем в paragraph
                 return [PdfParagraphBlock(content=seg)]
             name_s, price_s = split
 
-            # находим границы name/price в оригинальной строке
-            # (упрощённо: ищем first occurrence of price_s)
             idx = raw.find(price_s)
             if idx <= 0:
                 return [PdfParagraphBlock(content=seg)]
@@ -445,7 +407,6 @@ def _build_blocks_from_segment(seg: PdfRichText) -> list[PdfBlock]:
         items: list[PdfRichText] = []
         line_rts = _split_richtext_lines(seg)
 
-        # indent_level (по leading spaces) — грубо, но реально работает на “скопированном” тексте
         leading_spaces = []
         for ln in line_rts:
             m = re.match(r"^(\s+)", ln.text)
@@ -455,7 +416,6 @@ def _build_blocks_from_segment(seg: PdfRichText) -> list[PdfBlock]:
 
         for ln_rt in line_rts:
             t = ln_rt.text
-            # убираем маркеры/нумерацию
             m = _BULLET_RE.match(t)
             cut = m.end() if m else 0
             item_rt = _slice_richtext(ln_rt, cut, len(t))
@@ -473,9 +433,7 @@ def _build_blocks_from_segment(seg: PdfRichText) -> list[PdfBlock]:
 def _normalize_text_block(tb: PdfTextBlock) -> list[PdfBlock]:
     normalized = _normalize_text(tb.content.text)
     rt = PdfRichText(text=normalized, entities=tb.content.entities)
-
     segments = _segment_by_blank_lines(rt)
-
     out: list[PdfBlock] = []
     for seg in segments:
         out.extend(_build_blocks_from_segment(seg))
@@ -517,7 +475,6 @@ def _draw_paragraph(
         page_height: float,
         y: float | None,
 ) -> tuple[bool, float]:
-    # используем текущую логику как “paragraph renderer”, но без split по абзацам внутри
     if y is None:
         y = page_height - layout.top_margin
 
@@ -525,8 +482,12 @@ def _draw_paragraph(
     c.setFont(layout.font_name, layout.font_size)
 
     drawn = False
-    # paragraph — это один сегмент, в нём могут быть \n (например адрес/реквизиты)
-    for idx, line in enumerate(rt.text.split("\n")):
+    # FIX: вычисляем lines один раз, а не дважды (строка 529 и 542 в оригинале).
+    # Второй вызов rt.text.split("\n") в условии idx < len(...) - 1 создавал
+    # новый список на каждой итерации — мелкая неэффективность и потенциальный
+    # источник расхождения если текст мутировал бы между вызовами.
+    lines = rt.text.split("\n")
+    for idx, line in enumerate(lines):
         if line.strip() == "":
             y = _ensure_page(c, layout, page_height, y)
             y -= max(layout.line_height, layout.paragraph_spacing)
@@ -539,7 +500,7 @@ def _draw_paragraph(
             drawn = True
             if i < len(wrapped) - 1:
                 y -= layout.wrap_line_height
-        if idx < len(rt.text.split("\n")) - 1:
+        if idx < len(lines) - 1:
             y -= layout.line_height
 
     y -= layout.block_spacing
@@ -588,16 +549,13 @@ def _draw_list(
     item_gap = layout.wrap_line_height if lb.tight else layout.line_height
 
     for item in lb.items:
-        # bullet on first line
         wrapped = wrap_by_width(item.text, max_w, layout.font_name, layout.font_size) or [""]
 
-        # first line
         y = _ensure_page(c, layout, page_height, y)
         c.drawString(x_bullet, y, lb.bullet)
         c.drawString(x_text, y, wrapped[0])
         drawn = True
 
-        # hanging lines
         for wline in wrapped[1:]:
             y -= layout.wrap_line_height
             y = _ensure_page(c, layout, page_height, y)
@@ -638,12 +596,10 @@ def _draw_price_table(
 
         wrapped_name = wrap_by_width(name, max_name_w, layout.font_name, layout.font_size) or [""]
 
-        # первая строка: name + price
         c.drawString(x_left, y, wrapped_name[0])
         c.drawString(x_price, y, price)
         drawn = True
 
-        # доп строки: только name
         for extra in wrapped_name[1:]:
             y -= layout.wrap_line_height
             y = _ensure_page(c, layout, page_height, y)
@@ -655,10 +611,6 @@ def _draw_price_table(
     return drawn, y
 
 
-# ----------------------------
-# Existing image estimate helper stays unchanged
-# ----------------------------
-
 def _estimate_image_draw_height(
         image_path: Path,
         *,
@@ -669,12 +621,6 @@ def _estimate_image_draw_height(
         margin_bottom: float,
         options: ImageRenderOptions,
 ) -> float:
-    """
-    Оценивает высоту, на которую draw_images нарисует картинку (режим contain),
-    чтобы мы могли поставить курсор текста ПОД изображением и не накладывать текст поверх.
-
-    Важно: это оценка по тем же правилам (EXIF transpose + rotate horizontal + contain).
-    """
     max_w = page_width - 2 * margin_left
     max_h = page_height - margin_top - margin_bottom
 
@@ -685,22 +631,18 @@ def _estimate_image_draw_height(
     if width_px <= 0 or height_px <= 0:
         return 0.0
 
-    # повторяем логику rotate_horizontal
     is_horizontal = width_px >= height_px
     if options.rotate_horizontal and is_horizontal:
-        # cw = -90, ccw = +90
         if options.rotate_direction == "cw":
             img = img.rotate(-90, expand=True)
         else:
             img = img.rotate(90, expand=True)
         width_px, height_px = img.size
 
-    # contain
     scale_w = max_w / float(width_px)
     scale_h = max_h / float(height_px)
     scale = min(scale_w, scale_h)
     if not options.allow_upscale:
         scale = min(scale, 1.0)
 
-    draw_h = height_px * scale
-    return float(draw_h)
+    return float(height_px * scale)
