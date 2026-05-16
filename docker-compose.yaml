@@ -1,19 +1,35 @@
+# =============================================================================
+# ВАЖНО: относительные пути заданы исходя из монорепо-структуры:
+#
+#   project-root/
+#   ├── docker-compose.yaml   ← этот файл
+#   ├── pdf-service/          ← FastAPI + PDF/TXT обработка
+#   ├── telegram-bot/         ← Telegram Bot
+#   └── files-cleaner/        ← периодическая очистка файлов
+#
+# Если сервисы лежат в других директориях — задай переменные в .env:
+#   PDF_SERVICE_PATH=../FastAPI-Learning
+#   TELEGRAM_BOT_PATH=../Telegram-Bot
+#   FILES_CLEANER_PATH=../Fast-Cleaner
+# =============================================================================
+
 services:
   rabbitmq:
     image: rabbitmq:4.1.5-management
     container_name: rabbitmq
     hostname: rabbitmq
     ports:
-      - "15672:15672" # UI
-      - "5672:5672"   # AMQP
+      - "15672:15672"  # Management UI
+      - "5672:5672"    # AMQP
     environment:
       RABBITMQ_DEFAULT_USER: guest
       RABBITMQ_DEFAULT_PASS: guest
     healthcheck:
-      test: [ "CMD", "rabbitmq-diagnostics", "-q", "ping" ]
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
       interval: 5s
       timeout: 5s
-      retries: 5
+      retries: 10
+      start_period: 10s
     restart: unless-stopped
     networks:
       - pdfnik_network
@@ -22,52 +38,57 @@ services:
     image: redis:7.2-alpine
     container_name: redis
     hostname: pdfbot_redis
-    command: [ "redis-server", "--save", "60", "1", "--loglevel", "warning" ]
+    command: ["redis-server", "--save", "60", "1", "--loglevel", "warning"]
     volumes:
       - redis_data:/redis_data
     restart: unless-stopped
     networks:
       - pdfnik_network
 
-  pdf-service:
-    build:
-      context: /home/dmitriy/PycharmProjects/FastAPI-Learning
-      dockerfile: /home/dmitriy/PycharmProjects/FastAPI-Learning/Dockerfile
-    container_name: pdf-service
-    volumes:
-      - files_storage:/data_files_storage
-    env_file:
-      - .env
-    depends_on:
-      - rabbitmq
-      - redis
-      - telegram-bot
-    #    command: ["python", "main.py"]
-    command: ["sh", "-c", "sleep 5 && python main.py"]
-    restart: unless-stopped
-    networks:
-      - pdfnik_network
-
   telegram-bot:
     build:
-      context: /home/dmitriy/PycharmProjects/Telegram-Bot
-      dockerfile: /home/dmitriy/PycharmProjects/Telegram-Bot/Dockerfile
+      context: ${TELEGRAM_BOT_PATH:-./telegram-bot}
+      dockerfile: Dockerfile
     container_name: telegram-bot
     volumes:
       - files_storage:/data_files_storage
     env_file:
       - .env
     depends_on:
-      - rabbitmq
-      - redis
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    restart: unless-stopped
+    networks:
+      - pdfnik_network
+
+  pdf-service:
+    build:
+      context: ${PDF_SERVICE_PATH:-./pdf-service}
+      dockerfile: Dockerfile
+    container_name: pdf-service
+    volumes:
+      - files_storage:/data_files_storage
+    env_file:
+      - .env
+    depends_on:
+      # FIX 1: зависимость от telegram-bot удалена — данные идут ОТ pdf-service К bot,
+      #         а не наоборот. Добавление обратной зависимости могло создавать
+      #         deadlock при старте (bot ждал чего-то, pdf-service ждал bot).
+      # FIX 2: убран sleep 5 — заменён на condition: service_healthy у rabbitmq.
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_started
     restart: unless-stopped
     networks:
       - pdfnik_network
 
   files-cleaner:
     build:
-      context: /home/dmitriy/PycharmProjects/Fast-Cleaner
-      dockerfile: /home/dmitriy/PycharmProjects/Fast-Cleaner/Dockerfile
+      context: ${FILES_CLEANER_PATH:-./files-cleaner}
+      dockerfile: Dockerfile
     container_name: files-cleaner
     volumes:
       - files_storage:/data_files_storage
