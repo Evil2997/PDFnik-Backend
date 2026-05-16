@@ -1,11 +1,15 @@
-import subprocess
 from pathlib import Path
+
+from main_app.domain.work_with_pdf.actions.files.audio.process import run_cmd
 
 
 def get_audio_duration_sec(path: Path) -> float:
     """
     Возвращает длительность аудио в секундах через ffprobe.
-    Требует установленный ffmpeg.
+
+    Использует run_cmd() вместо прямого subprocess.run(), чтобы не дублировать
+    логику логирования и обработки ненулевого кода возврата.
+    CommandFailedError (подкласс RuntimeError) поднимается при ошибке.
     """
     cmd = [
         "ffprobe",
@@ -14,15 +18,5 @@ def get_audio_duration_sec(path: Path) -> float:
         "-of", "default=noprint_wrappers=1:nokey=1",
         str(path),
     ]
-
-    p = subprocess.run(
-        cmd,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-
-    if p.returncode != 0:
-        raise RuntimeError(f"ffprobe failed: {p.stderr}")
-
-    return float(p.stdout.strip())
+    result = run_cmd(cmd)
+    return float(result.stdout.strip())
