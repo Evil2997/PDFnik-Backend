@@ -33,12 +33,24 @@ def transcribe(
         allow_skip=True,
     )
 
-    logger.info(
-        "PROD done | cached=%s | txt=%s | wall=%.2fs | rtf=%s | lang=%s",
-        "yes" if res.cached else "no",
-        res.output_txt,
-        res.metrics.wall_time_sec,
-        f"{res.metrics.rtf:.3f}" if res.metrics.rtf is not None else "n/a",
-        res.detected_language or "n/a",
-    )
+    # FIX: раньше logger.info вызывался независимо от статуса результата,
+    # что маскировало реальные ошибки транскрибирования в логах.
+    if res.status != "ok":
+        logger.error(
+            "PROD failed | cached=%s | txt=%s | wall=%.2fs | error=%s",
+            "yes" if res.cached else "no",
+            res.output_txt,
+            res.metrics.wall_time_sec,
+            res.error or "unknown",
+        )
+    else:
+        logger.info(
+            "PROD done | cached=%s | txt=%s | wall=%.2fs | rtf=%s | lang=%s",
+            "yes" if res.cached else "no",
+            res.output_txt,
+            res.metrics.wall_time_sec,
+            f"{res.metrics.rtf:.3f}" if res.metrics.rtf is not None else "n/a",
+            res.detected_language or "n/a",
+        )
+
     return res
