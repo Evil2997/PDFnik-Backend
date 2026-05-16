@@ -4,7 +4,12 @@ import time
 from pathlib import Path
 
 from main_app.domain.work_with_pdf.actions.files.exceptions import TranscribeError
-from main_app.domain.work_with_pdf.actions.files.models import TranscribeConfig, PreparedTarget, RunResult, RunMetrics
+from main_app.domain.work_with_pdf.actions.files.models import (
+    TranscribeConfig,
+    PreparedTarget,
+    RunResult,
+    RunMetrics,
+)
 from main_app.domain.work_with_pdf.actions.files.ports.run_repository import RunRepository
 from main_app.domain.work_with_pdf.actions.files.ports.transcribe_engine import TranscribeEngine
 
@@ -58,12 +63,15 @@ def run_once(
 
     compute = resolve_compute_type(cfg)
     run_key = make_run_key(prepared.target_id, cfg, compute)
-
     out_txt = out_dir / txt_name_for_run(prepared.base_name, run_key)
 
+    # FIX: кешируем ТОЛЬКО успешные запуски.
+    # Раньше status="failed" тоже попадал в кеш, что приводило к бесконечному
+    # retry-loop: job реквотируется, снова попадает в кеш, снова падает.
     if allow_skip and out_txt.exists():
         row = repo.get(run_key)
-        if row:
+        if row and row.get("status") == "ok":
+            logger.info("[run_once] cache hit | run_key=%s", run_key)
             metrics = RunMetrics(
                 wall_time_sec=0.0,
                 audio_duration_sec=prepared.audio_duration_sec,
@@ -76,11 +84,11 @@ def run_once(
                 detected_language=None,
                 metrics=metrics,
                 cached=True,
-                status=row.get("status") or "ok",
+                status="ok",
                 error=None,
             )
 
-    logger.info("Transcribe | txt=%s", out_txt.name)
+    logger.info("[run_once] transcribing | txt=%s", out_txt.name)
 
     t0 = time.perf_counter()
     try:
@@ -91,17 +99,9 @@ def run_once(
 
         audio_dur = prepared.audio_duration_sec
         rtf = (wall / audio_dur) if (audio_dur and audio_dur > 0) else None
-
         metrics = RunMetrics(wall_time_sec=wall, audio_duration_sec=audio_dur, rtf=rtf)
 
-        # MINIMAL upsert
-        repo.upsert(
-            {
-                "run_key": run_key,
-                "status": "ok",
-                "output_txt": str(out_txt),
-            }
-        )
+        repo.upsert({"run_key": run_key, "status": "ok", "output_txt": str(out_txt)})
 
         return RunResult(
             run_key=run_key,
@@ -116,19 +116,12 @@ def run_once(
 
     except Exception as e:
         err = e if isinstance(e, TranscribeError) else TranscribeError(str(e))
-
         wall = time.perf_counter() - t0
         audio_dur = prepared.audio_duration_sec
         rtf = (wall / audio_dur) if (audio_dur and audio_dur > 0) else None
         metrics = RunMetrics(wall_time_sec=wall, audio_duration_sec=audio_dur, rtf=rtf)
 
-        repo.upsert(
-            {
-                "run_key": run_key,
-                "status": "failed",
-                "output_txt": str(out_txt),
-            }
-        )
+        repo.upsert({"run_key": run_key, "status": "failed", "output_txt": str(out_txt)})
 
         return RunResult(
             run_key=run_key,
