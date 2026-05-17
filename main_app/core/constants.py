@@ -8,13 +8,14 @@ from main_app.core.settings import settings
 
 RABBITMQ_URL: Final[str] = settings.RABBITMQ_URL
 
-FILES_ROOT: Final[pathlib.Path] = pathlib.Path(settings.FILES_ROOT)
-PDF_OUTPUT_DIR: Final[pathlib.Path] = pathlib.Path(settings.PDF_OUTPUT_DIR)
-TXT_OUTPUT_DIR: Final[pathlib.Path] = pathlib.Path(settings.TXT_OUTPUT_DIR)
-RUNS_DB_PATH: Final[pathlib.Path] = pathlib.Path(settings.RUNS_DB_PATH)
-
-FONT_TYPE: Final[str] = settings.FONT_TYPE
-FONT_PATH: Final[str] = settings.FONT_PATH
-
+# Пути к файловому хранилищу.
+# В docker-compose смонтированы как volume files_storage.
 # mkdir вынесен в main.py — не должен выполняться при импорте модуля,
 # иначе тесты падают с PermissionError на /data_files_storage.
+FILES_ROOT: Final[pathlib.Path] = pathlib.Path("/data_files_storage")
+PDF_OUTPUT_DIR: Final[pathlib.Path] = FILES_ROOT / "pdfs"
+TXT_OUTPUT_DIR: Final[pathlib.Path] = FILES_ROOT / "txts"
+RUNS_DB_PATH: Final[pathlib.Path] = FILES_ROOT / "runs.db"
+
+FONT_TYPE: Final[str] = "DejaVuSans"
+FONT_PATH: Final[str] = "/app/fonts/DejaVuSans.ttf"
