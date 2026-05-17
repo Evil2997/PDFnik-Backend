@@ -1,26 +1,24 @@
 """
-Тесты для YouTubeMetadata и связанных моделей в models.py.
+Tests for YouTubeMetadata and related models in models.py.
 
-Покрываем:
-- duration_str: разные форматы (часы, минуты, секунды)
-- upload_date_str: форматирование даты
-- edge cases: None, 0, неполные данные
-- PreparedTarget с youtube_metadata
+Coverage includes:
+- duration_str: various formats (hours, minutes, seconds)
+- upload_date_str: date formatting
+- edge cases: None, 0, incomplete data
+- PreparedTarget with youtube_metadata
 """
-import pytest
 
 from main_app.domain.work_with_pdf.actions.files.models import (
     PreparedTarget,
     RunMetrics,
     RunResult,
-    TranscribeConfig,
     YouTubeMetadata,
 )
-
 
 # ---------------------------------------------------------------------------
 # duration_str
 # ---------------------------------------------------------------------------
+
 
 class TestDurationStr:
     def test_minutes_and_seconds(self):
@@ -57,6 +55,7 @@ class TestDurationStr:
 # upload_date_str
 # ---------------------------------------------------------------------------
 
+
 class TestUploadDateStr:
     def test_valid_date(self):
         m = YouTubeMetadata(url="https://x.com", upload_date="20240315")
@@ -80,8 +79,9 @@ class TestUploadDateStr:
 
 
 # ---------------------------------------------------------------------------
-# YouTubeMetadata — базовые поля
+# YouTubeMetadata — Basic fields
 # ---------------------------------------------------------------------------
+
 
 class TestYouTubeMetadataFields:
     def test_only_url_required(self):
@@ -108,14 +108,15 @@ class TestYouTubeMetadataFields:
         assert m.view_count == 12345
 
     def test_immutable(self):
-        """YouTubeMetadata не frozen по умолчанию, но поля валидируются."""
+        """YouTubeMetadata is not frozen by default, but its fields are validated."""
         m = YouTubeMetadata(url="https://x.com", view_count=100)
         assert m.view_count == 100
 
 
 # ---------------------------------------------------------------------------
-# PreparedTarget с youtube_metadata
+# PreparedTarget with youtube_metadata
 # ---------------------------------------------------------------------------
+
 
 class TestPreparedTargetWithMetadata:
     def test_without_metadata(self, tmp_path):
@@ -146,8 +147,9 @@ class TestPreparedTargetWithMetadata:
 
 
 # ---------------------------------------------------------------------------
-# RunResult с youtube_metadata
+# RunResult with youtube_metadata
 # ---------------------------------------------------------------------------
+
 
 class TestRunResultWithMetadata:
     def test_metadata_propagated(self, tmp_path):

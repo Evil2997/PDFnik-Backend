@@ -1,28 +1,29 @@
 from pathlib import Path
-from typing import Literal, Optional
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
 
 class YouTubeMetadata(BaseModel):
     """
-    Метаданные YouTube-видео, полученные через yt-dlp --dump-json.
-    Все поля опциональны: yt-dlp может вернуть неполный JSON
-    (приватные видео, живые трансляции, regional lock).
+    YouTube video metadata obtained via yt-dlp --dump-json.
+    All fields are optional: yt-dlp may return incomplete JSON
+    (private videos, live streams, regional locks).
     """
+
     url: str
-    title: Optional[str] = None
-    channel: Optional[str] = None
-    uploader: Optional[str] = None  # канал или имя загрузчика
-    upload_date: Optional[str] = None  # "YYYYMMDD"
-    duration_sec: Optional[float] = None  # в секундах
-    view_count: Optional[int] = None
-    description: Optional[str] = None  # первые 500 символов
-    thumbnail_url: Optional[str] = None
+    title: str | None = None
+    channel: str | None = None
+    uploader: str | None = None  # Channel or uploader name
+    upload_date: str | None = None  # "YYYYMMDD"
+    duration_sec: float | None = None
+    view_count: int | None = None
+    description: str | None = None
+    thumbnail_url: str | None = None
 
     @property
     def duration_str(self) -> str:
-        """Человекочитаемая длительность: '1:23:45' или '3:21'."""
+        """Human-readable duration: '1:23:45' or '3:21'."""
         if not self.duration_sec:
             return "неизвестно"
         total = int(self.duration_sec)
@@ -46,14 +47,14 @@ class PreparedTarget(BaseModel):
     target_id: str
     base_name: str
     wav_path: Path
-    audio_duration_sec: Optional[float] = None
-    youtube_metadata: Optional[YouTubeMetadata] = None  # заполняется только для URL-источников
+    audio_duration_sec: float | None = None
+    youtube_metadata: YouTubeMetadata | None = None  # filled out only for URL sources
 
 
 class TranscribeConfig(BaseModel):
     model: str
     device: str
-    compute_type: Optional[str] = None
+    compute_type: str | None = None
     threads: int = Field(ge=1)
     workers: int = Field(ge=1)
     beam_size: int = Field(ge=1)
@@ -64,18 +65,18 @@ class TranscribeConfig(BaseModel):
 
 class RunMetrics(BaseModel):
     wall_time_sec: float
-    audio_duration_sec: Optional[float] = None
-    rtf: Optional[float] = None
+    audio_duration_sec: float | None = None
+    rtf: float | None = None
 
 
 class RunResult(BaseModel):
     run_key: str
     target_id: str
     output_txt: Path
-    detected_language: Optional[str] = None
+    detected_language: str | None = None
     metrics: RunMetrics
     cached: bool = False
-    youtube_metadata: Optional[YouTubeMetadata] = None  # прокидывается из PreparedTarget
+    youtube_metadata: YouTubeMetadata | None = None  # Passed through from PreparedTarget
 
     status: Literal["ok", "failed"] = "ok"
-    error: Optional[str] = None
+    error: str | None = None

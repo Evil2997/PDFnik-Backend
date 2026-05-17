@@ -2,16 +2,14 @@
 # repo: PDFnik-Backend
 
 """
-Тесты для классификатора и эвристик в pdf_normalizer.py.
+Tests for the classifier and heuristics in pdf_normalizer.py.
 
-После рефакторинга create_pdf.py функции классификации переехали
-в pdf_normalizer.py — импорт обновлён соответственно.
+Following the refactoring of create_pdf.py, the classification functions
+were moved to pdf_normalizer.py—the imports have been updated accordingly.
 """
+
 import sys
 from types import SimpleNamespace
-
-import pytest
-
 
 # ---------------------------------------------------------------------------
 # Stub pdfnik_contracts
@@ -20,6 +18,7 @@ import pytest
 _contracts = sys.modules.get("pdfnik_contracts.pdf_content")
 if _contracts is None:
     import types
+
     _contracts = types.ModuleType("pdfnik_contracts.pdf_content")
     sys.modules["pdfnik_contracts"] = types.ModuleType("pdfnik_contracts")
     sys.modules["pdfnik_contracts.pdf_content"] = _contracts
@@ -49,16 +48,18 @@ _contracts.PdfListBlock = lambda **kw: SimpleNamespace(**kw)
 _contracts.PdfPriceRow = lambda **kw: SimpleNamespace(**kw)
 _contracts.PdfPriceTableBlock = lambda **kw: SimpleNamespace(**kw)
 _contracts.PdfBlockType = SimpleNamespace(
-    PARAGRAPH="paragraph", HEADING="heading",
-    LIST="list", PRICE_TABLE="price_table",
+    PARAGRAPH="paragraph",
+    HEADING="heading",
+    LIST="list",
+    PRICE_TABLE="price_table",
 )
 _contracts.PdfImageBlock = object
 
-# FIX: импорт из pdf_normalizer, а не из create_pdf.
-# После рефакторинга функции классификации живут в pdf_normalizer.py.
-# create_pdf.py импортирует reportlab на уровне модуля, что ломает тесты
-# в среде без установленного reportlab.
-from main_app.domain.work_with_pdf.pdf_normalizer import (
+# FIX: Import from pdf_normalizer, not create_pdf.
+# Following the refactoring, the classification functions now reside in pdf_normalizer.py.
+# create_pdf.py imports reportlab at the module level, which breaks tests
+# in environments where reportlab is not installed.
+from main_app.domain.work_with_pdf.pdf_normalizer import (  # noqa: E402
     _classify_segment,
     _is_heading,
     _is_signature_segment,
@@ -76,6 +77,7 @@ def rt(text: str) -> _PdfRichText:
 # ---------------------------------------------------------------------------
 # _is_heading
 # ---------------------------------------------------------------------------
+
 
 class TestIsHeading:
     def test_uppercase_short(self):
@@ -102,6 +104,7 @@ class TestIsHeading:
 # _looks_like_field_line
 # ---------------------------------------------------------------------------
 
+
 class TestLooksLikeFieldLine:
     def test_kundennummer(self):
         assert _looks_like_field_line("Kundennummer: 12345") is True
@@ -126,6 +129,7 @@ class TestLooksLikeFieldLine:
 # _is_signature_segment
 # ---------------------------------------------------------------------------
 
+
 class TestIsSignatureSegment:
     def test_german_greeting(self):
         assert _is_signature_segment(rt("Mit freundlichen Grüßen\nMax Mustermann")) is True
@@ -146,6 +150,7 @@ class TestIsSignatureSegment:
 # ---------------------------------------------------------------------------
 # _try_split_price_line
 # ---------------------------------------------------------------------------
+
 
 class TestTrySplitPriceLine:
     def test_euro_dash(self):
@@ -172,6 +177,7 @@ class TestTrySplitPriceLine:
 # _classify_segment
 # ---------------------------------------------------------------------------
 
+
 class TestClassifySegment:
     def test_heading_uppercase(self):
         assert _classify_segment(rt("SPEISEKARTE")) == "heading"
@@ -193,13 +199,17 @@ class TestClassifySegment:
         assert _classify_segment(rt("- Tomaten\n- Gurken\n- Paprika")) == "list"
 
     def test_list_numbered(self):
-        assert _classify_segment(rt("1. Erster Punkt\n2. Zweiter Punkt\n3. Dritter Punkt")) == "list"
+        assert (
+            _classify_segment(rt("1. Erster Punkt\n2. Zweiter Punkt\n3. Dritter Punkt")) == "list"
+        )
 
     def test_implicit_list_needs_3_items(self):
         assert _classify_segment(rt("Kurze Zeile\nNoch eine")) == "paragraph"
 
     def test_implicit_list_3_items(self):
-        assert _classify_segment(rt("Kurze Zeile eins\nKurze Zeile zwei\nKurze Zeile drei")) == "list"
+        assert (
+            _classify_segment(rt("Kurze Zeile eins\nKurze Zeile zwei\nKurze Zeile drei")) == "list"
+        )
 
     def test_field_block_stays_paragraph(self):
         text = "Kundennummer: 12345\nDatum: 01.01.2024\nBetreff: Rechnung"
@@ -216,6 +226,7 @@ class TestClassifySegment:
 # ---------------------------------------------------------------------------
 # _segment_by_blank_lines
 # ---------------------------------------------------------------------------
+
 
 class TestSegmentByBlankLines:
     def test_single_blank_line_stays_in_segment(self):
@@ -241,6 +252,7 @@ class TestSegmentByBlankLines:
 # ---------------------------------------------------------------------------
 # _normalize_text
 # ---------------------------------------------------------------------------
+
 
 class TestNormalizeText:
     def test_crlf_to_lf(self):

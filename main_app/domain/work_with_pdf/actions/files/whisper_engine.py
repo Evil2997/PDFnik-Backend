@@ -1,7 +1,6 @@
 import logging
 import threading
 from pathlib import Path
-from typing import Optional
 
 from faster_whisper import WhisperModel
 
@@ -13,42 +12,40 @@ logger = logging.getLogger(__name__)
 
 class WhisperEngine:
     """
-    Thread-safe обёртка над faster-whisper.
+    A thread-safe wrapper around faster-whisper.
 
-    Проблема: WhisperEngine — синглтон, shared между несколькими asyncio-задачами,
-    которые выполняются в ThreadPoolExecutor (run_in_executor).
-    Без блокировки два потока с разными cfg могут одновременно перезагружать модель,
-    приводя к race condition на self._model, self._device и т.д.
+    Problem: WhisperEngine is a singleton shared across multiple asyncio tasks
+    executing within a ThreadPoolExecutor (via `run_in_executor`).
+    Without locking, two threads with different configurations could attempt to reload the model simultaneously,
+    leading to a race condition involving `self._model`, `self._device`, etc.
 
-    Решение: Lock на всю операцию transcribe().
-    Это сериализует транскрибирование, что правильно — Whisper и так CPU-bound
-    и уже использует внутренний threadpool; параллельные запуски не дадут прироста.
+    Solution: Apply a Lock to the entire `transcribe()` operation.
+    This serializes the transcription process, which is appropriate—Whisper is inherently CPU-bound
+    and already utilizes an internal thread pool; running multiple instances in parallel would yield no performance gains.
     """
 
-    def __init__(self, model_name: Optional[str] = None):
+    def __init__(self, model_name: str | None = None):
         self.model_name = model_name or settings.TRANSCRIBE_MODEL
-        self._model: Optional[WhisperModel] = None
-        self._device: Optional[str] = None
-        self._compute_type: Optional[str] = None
-        self._threads: Optional[int] = None
-        self._workers: Optional[int] = None
+        self._model: WhisperModel | None = None
+        self._device: str | None = None
+        self._compute_type: str | None = None
+        self._threads: int | None = None
+        self._workers: int | None = None
         self._lock = threading.Lock()
 
     def load(self, cfg: TranscribeConfig) -> None:
         """
-        Загружает (или перезагружает) модель.
-        ВНИМАНИЕ: вызывается только из-под self._lock.
+        Loads (or reloads) the model.
+        WARNING: Must be called only while holding self._lock.
         """
-        compute = cfg.compute_type or (
-            "float16" if cfg.device.lower() == "cuda" else "int8"
-        )
+        compute = cfg.compute_type or ("float16" if cfg.device.lower() == "cuda" else "int8")
 
         already_loaded = (
-                self._model is not None
-                and self._device == cfg.device
-                and self._compute_type == compute
-                and self._threads == cfg.threads
-                and self._workers == cfg.workers
+            self._model is not None
+            and self._device == cfg.device
+            and self._compute_type == compute
+            and self._threads == cfg.threads
+            and self._workers == cfg.workers
         )
         if already_loaded:
             return
@@ -75,11 +72,11 @@ class WhisperEngine:
         self._threads = cfg.threads
         self._workers = cfg.workers
 
-    def transcribe(self, wav_path: Path, cfg: TranscribeConfig) -> tuple[str, Optional[str]]:
+    def transcribe(self, wav_path: Path, cfg: TranscribeConfig) -> tuple[str, str | None]:
         """
-        Транскрибирует WAV-файл. Полностью сериализован через Lock:
-        включая загрузку модели и генерацию сегментов (сегменты — lazy iterator,
-        их нужно материализовать до выхода из-под блокировки).
+        Transcribes a WAV file. Fully serialized via a Lock:
+        including model loading and segment generation (segments are a lazy iterator
+        and must be materialized before releasing the lock).
         """
         with self._lock:
             self.load(cfg)
@@ -92,9 +89,9 @@ class WhisperEngine:
                 language=None if cfg.lang == "auto" else cfg.lang,
             )
 
-            # Материализуем lazy-iterator внутри lock.
-            # Если вынести за пределы, другой поток может перезагрузить модель
-            # пока мы ещё читаем сегменты старой.
+            # Materialize the lazy iterator inside the lock.
+            # If moved outside, another thread could reload the model
+            # while we are still reading segments of the old one.
             text = "".join(seg.text for seg in segments).strip()
             detected = getattr(info, "language", None)
 

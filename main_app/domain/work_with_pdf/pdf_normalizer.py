@@ -2,13 +2,13 @@
 # repo: PDFnik-Backend
 
 """
-Нормализация и классификация PDF-блоков.
+Normalization and classification of PDF blocks.
 
-Принимаетырые PdfTextBlock → возвращает структурированные блоки:
+Accepts PdfTextBlock objects → returns structured blocks:
 paragraph / heading / list / price_table.
 
-Публичный API:
-    normalize_document_blocks(blocks) -> list[PdfBlock]
+Public API:
+normalize_document_blocks(blocks) -> list[PdfBlock]
 """
 
 import re
@@ -32,7 +32,7 @@ from pdfnik_contracts.pdf_content import (
 _PRICE_RE = re.compile(
     r"(?i)(?:€|eur|euro)?\s*\d{1,3}(?:[ .]\d{3})*(?:[.,]\d{2})?\s*(?:€|eur|euro)?"
 )
-_SEP_RE = re.compile(r"\s*(?:—|–|-|:)\s+")
+_SEP_RE = re.compile(r"\s*(?:—|–|-|:)\s+")  # noqa: RUF001
 _BULLET_RE = re.compile(r"^\s*(?:[•\-\*\u2013\u2014]|(?:\d+[\.\)]))\s+")
 
 _SIGNATURE_MARKERS = (
@@ -48,6 +48,7 @@ _SIGNATURE_MARKERS = (
 # RichText utilities
 # ---------------------------------------------------------------------------
 
+
 def _normalize_text(s: str) -> str:
     s = s.replace("\r\n", "\n").replace("\r", "\n")
     s = "\n".join(line.rstrip() for line in s.split("\n"))
@@ -55,7 +56,7 @@ def _normalize_text(s: str) -> str:
 
 
 def _slice_richtext(rt: PdfRichText, start: int, end: int) -> PdfRichText:
-    """Безопасный слайс PdfRichText: сохраняем entities, пересчитываем offset/length."""
+    """Safe PdfRichText slice: preserve entities, recalculate offset/length."""
     start = max(0, start)
     end = max(start, end)
     sub_text = rt.text[start:end]
@@ -121,6 +122,7 @@ def _join_richtext_lines(lines: list[PdfRichText]) -> PdfRichText:
 # Classifier heuristics
 # ---------------------------------------------------------------------------
 
+
 def _is_heading(segment: PdfRichText) -> bool:
     t = segment.text.strip()
     if not t:
@@ -149,9 +151,8 @@ def _is_signature_segment(seg: PdfRichText) -> bool:
     if any(m in t for m in _SIGNATURE_MARKERS):
         return True
     lines = [x.strip() for x in seg.text.split("\n") if x.strip()]
-    if 2 <= len(lines) <= 4:
-        if any(re.search(r"\b\d{1,2}\.\d{1,2}\.\d{4}\b", ln) for ln in lines):
-            return True
+    if 2 <= len(lines) <= 4 and any(re.search(r"\b\d{1,2}\.\d{1,2}\.\d{4}\b", ln) for ln in lines):
+        return True
     return False
 
 
@@ -217,10 +218,11 @@ def _classify_segment(seg: PdfRichText) -> str:
 # Segmenter
 # ---------------------------------------------------------------------------
 
+
 def _segment_by_blank_lines(rt: PdfRichText) -> list[PdfRichText]:
     """
-    Разбиваем на сегменты только по 2+ подряд пустым строкам.
-    1 пустая строка остаётся внутри сегмента.
+    Split into segments only at 2 or more consecutive empty lines.
+    A single empty line remains within the segment.
     """
     lines = _split_richtext_lines(rt)
 
@@ -229,7 +231,7 @@ def _segment_by_blank_lines(rt: PdfRichText) -> list[PdfRichText]:
     blank_run = 0
 
     for ln in lines:
-        is_blank = (ln.text.strip() == "")
+        is_blank = ln.text.strip() == ""
         if is_blank:
             blank_run += 1
             current.append(ln)
@@ -256,6 +258,7 @@ def _segment_by_blank_lines(rt: PdfRichText) -> list[PdfRichText]:
 # ---------------------------------------------------------------------------
 # Block builder
 # ---------------------------------------------------------------------------
+
 
 def _build_blocks_from_segment(seg: PdfRichText) -> list[PdfBlock]:
     kind = _classify_segment(seg)
@@ -319,6 +322,7 @@ def _build_blocks_from_segment(seg: PdfRichText) -> list[PdfBlock]:
 # Public API
 # ---------------------------------------------------------------------------
 
+
 def _normalize_text_block(tb: PdfTextBlock) -> list[PdfBlock]:
     normalized = _normalize_text(tb.content.text)
     rt = PdfRichText(text=normalized, entities=tb.content.entities)
@@ -331,9 +335,9 @@ def _normalize_text_block(tb: PdfTextBlock) -> list[PdfBlock]:
 
 def normalize_document_blocks(blocks: list[PdfBlock]) -> list[PdfBlock]:
     """
-    PdfImageBlock оставляем как есть.
-    PdfTextBlock превращаем в paragraph / list / price_table / heading.
-    Уже структурные блоки — пропускаем.
+    Leave PdfImageBlock as is.
+    Transform PdfTextBlock into paragraph / list / price_table / heading.
+    Skip blocks that are already structural.
     """
     out: list[PdfBlock] = []
     for b in blocks:
