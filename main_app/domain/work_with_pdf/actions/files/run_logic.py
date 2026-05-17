@@ -65,9 +65,7 @@ def run_once(
     run_key = make_run_key(prepared.target_id, cfg, compute)
     out_txt = out_dir / txt_name_for_run(prepared.base_name, run_key)
 
-    # FIX: кешируем ТОЛЬКО успешные запуски.
-    # Раньше status="failed" тоже попадал в кеш, что приводило к бесконечному
-    # retry-loop: job реквотируется, снова попадает в кеш, снова падает.
+    # Кешируем только успешные запуски.
     if allow_skip and out_txt.exists():
         row = repo.get(run_key)
         if row and row.get("status") == "ok":
@@ -86,6 +84,9 @@ def run_once(
                 cached=True,
                 status="ok",
                 error=None,
+                # Метаданные прокидываем даже при cache hit:
+                # они нужны telegram-bot для сборки PDF-заголовка.
+                youtube_metadata=prepared.youtube_metadata,
             )
 
     logger.info("[run_once] transcribing | txt=%s", out_txt.name)
@@ -112,6 +113,7 @@ def run_once(
             cached=False,
             status="ok",
             error=None,
+            youtube_metadata=prepared.youtube_metadata,
         )
 
     except Exception as e:
@@ -132,4 +134,5 @@ def run_once(
             cached=False,
             status="failed",
             error=str(err),
+            youtube_metadata=prepared.youtube_metadata,
         )
