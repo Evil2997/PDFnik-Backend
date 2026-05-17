@@ -27,6 +27,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libfreetype6 \
     ffmpeg \
     libgomp1 \
+    fonts-dejavu-core \
+ && mkdir -p /app/fonts \
+ && cp /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf /app/fonts/ \
  && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /app /app
