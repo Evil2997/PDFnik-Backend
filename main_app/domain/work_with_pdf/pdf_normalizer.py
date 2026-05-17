@@ -32,7 +32,7 @@ from pdfnik_contracts.pdf_content import (
 _PRICE_RE = re.compile(
     r"(?i)(?:€|eur|euro)?\s*\d{1,3}(?:[ .]\d{3})*(?:[.,]\d{2})?\s*(?:€|eur|euro)?"
 )
-_SEP_RE = re.compile(r"\s+(?:—|–|-|:)\s+")
+_SEP_RE = re.compile(r"\s*(?:—|–|-|:)\s+")
 _BULLET_RE = re.compile(r"^\s*(?:[•\-\*\u2013\u2014]|(?:\d+[\.\)]))\s+")
 
 _SIGNATURE_MARKERS = (
