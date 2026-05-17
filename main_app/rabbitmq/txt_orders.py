@@ -1,7 +1,7 @@
 import asyncio
 import hashlib
 import time
-from typing import Any, Literal
+from typing import Any, Literal, Optional
 
 from faststream.rabbit.fastapi import RabbitRouter
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -9,14 +9,18 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from main_app.core.constants import FILES_ROOT, RUNS_DB_PATH
 from main_app.core.logger import logger
 from main_app.core.settings import settings
-from main_app.domain.work_with_pdf.actions.files.audio.target_preparer import AudioTargetPreparer
+from main_app.domain.work_with_pdf.actions.files.audio.audio_target_preparer import AudioTargetPreparer
 from main_app.domain.work_with_pdf.actions.files.generate_txt_path import generate_txt_path
-from main_app.domain.work_with_pdf.actions.files.models import TranscribeConfig
+from main_app.domain.work_with_pdf.actions.files.models import TranscribeConfig, YouTubeMetadata
 from main_app.domain.work_with_pdf.actions.files.prod_service import transcribe as prod_transcribe
 from main_app.domain.work_with_pdf.actions.files.run_logic import make_run_key, resolve_compute_type
 from main_app.domain.work_with_pdf.actions.files.sqlite.sqlite_repo import SqliteRunRepository
 from main_app.domain.work_with_pdf.actions.files.whisper_engine import WhisperEngine
 
+
+# ---------------------------------------------------------------------------
+# Request models
+# ---------------------------------------------------------------------------
 
 class TxtTarget(BaseModel):
     model_config = ConfigDict(frozen=True)
@@ -75,15 +79,9 @@ class TxtTranscribeJob(BaseModel):
             input_url = payload.get("input_url")
 
             if storage_key:
-                payload["target"] = {
-                    "kind": "storage_key",
-                    "value": storage_key,
-                }
+                payload["target"] = {"kind": "storage_key", "value": storage_key}
             elif input_url:
-                payload["target"] = {
-                    "kind": "url",
-                    "value": input_url,
-                }
+                payload["target"] = {"kind": "url", "value": input_url}
 
         if payload.get("reply") is None:
             chat_id = payload.get("chat_id")
@@ -100,13 +98,14 @@ class TxtTranscribeJob(BaseModel):
             mode = payload.get("mode")
 
             if source_type is not None or mode is not None:
-                payload["delivery"] = {
-                    "source_type": source_type,
-                    "mode": mode,
-                }
+                payload["delivery"] = {"source_type": source_type, "mode": mode}
 
         return payload
 
+
+# ---------------------------------------------------------------------------
+# Result model
+# ---------------------------------------------------------------------------
 
 class TxtDoneResult(BaseModel):
     job_id: str
@@ -116,7 +115,14 @@ class TxtDoneResult(BaseModel):
     delivery: TxtDelivery | None = None
     cached: bool | None = None
     error: str | None = None
+    # YouTube metadata: заполняется только для source_type="youtube"
+    # Telegram-bot использует это для формирования PDF-заголовка.
+    youtube_metadata: Optional[YouTubeMetadata] = None
 
+
+# ---------------------------------------------------------------------------
+# Internal helpers
+# ---------------------------------------------------------------------------
 
 _inflight_lock_guard = asyncio.Lock()
 _inflight_locks: dict[str, asyncio.Lock] = {}
@@ -128,7 +134,6 @@ def _hash(text: str) -> str:
 
 def _build_cfg(overrides: TxtCfgOverrides | None) -> TranscribeConfig:
     ov = overrides or TxtCfgOverrides()
-
     return TranscribeConfig(
         model=ov.model or settings.TRANSCRIBE_MODEL,
         device=ov.device or settings.TRANSCRIBE_DEVICE,
@@ -178,14 +183,12 @@ def _resolve_storage_path(storage_key: str) -> str:
 def _resolve_target(job: TxtTranscribeJob) -> str:
     if job.target.kind == "url":
         return job.target.value
-
     return _resolve_storage_path(job.target.value)
 
 
 def _target_id_for_job(job: TxtTranscribeJob) -> str:
     if job.target.kind == "url":
         return f"url_{_hash(job.target.value)}"
-
     abs_path = _resolve_storage_path(job.target.value)
     return f"file_{_hash(abs_path)}"
 
@@ -199,10 +202,8 @@ def _run_key_for_job(job: TxtTranscribeJob, cfg: TranscribeConfig) -> str:
 def _persist_txt_result(source_txt_path, job_id: str):
     dst_path = generate_txt_path(job_id).resolve()
     dst_path.parent.mkdir(parents=True, exist_ok=True)
-
     text = source_txt_path.read_text(encoding="utf-8")
     dst_path.write_text(text, encoding="utf-8")
-
     return dst_path
 
 
@@ -228,6 +229,10 @@ async def _release_run_lock_if_unused(run_key: str, lock: asyncio.Lock) -> None:
         if current is lock and not lock.locked():
             _inflight_locks.pop(run_key, None)
 
+
+# ---------------------------------------------------------------------------
+# Consumer registration
+# ---------------------------------------------------------------------------
 
 def register_txt_consumers(router: RabbitRouter) -> None:
     repo = SqliteRunRepository(RUNS_DB_PATH)
@@ -269,11 +274,7 @@ def register_txt_consumers(router: RabbitRouter) -> None:
         lock = await _get_or_create_run_lock(run_key)
 
         if lock.locked():
-            logger.info(
-                "[TXT] wait in-flight run | job_id=%s | run_key=%s",
-                job.job_id,
-                run_key,
-            )
+            logger.info("[TXT] wait in-flight run | job_id=%s | run_key=%s", job.job_id, run_key)
 
         try:
             async with lock:
@@ -308,15 +309,18 @@ def register_txt_consumers(router: RabbitRouter) -> None:
                         reply=job.reply,
                         delivery=job.delivery,
                         cached=res.cached,
+                        youtube_metadata=res.youtube_metadata,  # ← прокидываем
                     ),
                 )
 
                 logger.info(
-                    "[TXT DONE] job_id=%s | run_key=%s | txt_storage_key=%s | cached=%s | wall=%.3fs",
+                    "[TXT DONE] job_id=%s | run_key=%s | txt_storage_key=%s | cached=%s | "
+                    "youtube=%s | wall=%.3fs",
                     job.job_id,
                     run_key,
                     txt_storage_key,
                     res.cached,
+                    bool(res.youtube_metadata),
                     wall_time,
                 )
 
