@@ -1,0 +1,40 @@
+repos:
+  # ── ruff: lint + format ───────────────────────────────────────────────────
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.4.10
+    hooks:
+      - id: ruff
+        name: ruff lint
+        args: [--fix, --exit-non-zero-on-fix]
+      - id: ruff-format
+        name: ruff format
+
+  # ── Стандартные хуки ─────────────────────────────────────────────────────
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: trailing-whitespace
+        name: Trim trailing whitespace
+      - id: end-of-file-fixer
+        name: Fix end of file
+      - id: check-yaml
+        name: Check YAML syntax
+      - id: check-toml
+        name: Check TOML syntax
+      - id: check-merge-conflict
+        name: Check for merge conflict markers
+      - id: debug-statements
+        name: Check for debug statements (breakpoint, pdb)
+      - id: check-added-large-files
+        name: Check for large files
+        args: [--maxkb=1024]
+
+  # ── Проверка secrets ──────────────────────────────────────────────────────
+  # Защита от случайного коммита .env, токенов, ключей.
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.5.0
+    hooks:
+      - id: detect-secrets
+        name: Detect secrets
+        args: [--baseline, .secrets.baseline]
+        exclude: (tests/|\.example$|\.md$)
