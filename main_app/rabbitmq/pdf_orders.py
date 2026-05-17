@@ -1,8 +1,11 @@
+# /home/dmitriy/PycharmProjects/FastAPI-Learning/main_app/rabbitmq/pdf_orders.py
+# repo: PDFnik-Backend
+
 from faststream.rabbit.fastapi import RabbitRouter
 from pdfnik_contracts.pdf_content import PdfOrder
 
 from main_app.core.logger import logger
-from main_app.domain.pdf.service import generate_pdf_for_order
+from main_app.domain.work_with_pdf.pdf_service import generate_pdf_for_order
 
 
 def register_pdf_consumers(router: RabbitRouter) -> None:
