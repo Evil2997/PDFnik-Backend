@@ -1,13 +1,15 @@
 import logging
 import subprocess
-from typing import Sequence
+from collections.abc import Sequence
 
 from main_app.domain.work_with_pdf.actions.files.exceptions import CommandFailedError
 
 logger = logging.getLogger(__name__)
 
 
-def run_cmd(cmd: Sequence[str], *, capture_output: bool = True, text: bool = True) -> subprocess.CompletedProcess:
+def run_cmd(
+    cmd: Sequence[str], *, capture_output: bool = True, text: bool = True
+) -> subprocess.CompletedProcess:
     cmd_list = list(cmd)
     logger.debug("Run cmd: %s", " ".join(cmd_list))
 

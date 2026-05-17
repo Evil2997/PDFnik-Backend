@@ -23,9 +23,9 @@ class PdfLayout(BaseModel):
     bottom_margin: float = Field(default=60, ge=0)
 
     # ✅ --- List / table geometry ---
-    list_indent_step: float = Field(default=18, ge=0)   # один уровень вложенности
-    bullet_gap: float = Field(default=10, ge=0)         # расстояние от маркера до текста
-    price_gap: float = Field(default=12, ge=0)          # зазор между колонками name|price
+    list_indent_step: float = Field(default=18, ge=0)  # один уровень вложенности
+    bullet_gap: float = Field(default=10, ge=0)  # расстояние от маркера до текста
+    price_gap: float = Field(default=12, ge=0)  # зазор между колонками name|price
 
     heading_font_size_delta: int = Field(default=2, ge=0, le=10)
     heading_spacing_multiplier: float = Field(default=0.6, ge=0.0, le=4.0)

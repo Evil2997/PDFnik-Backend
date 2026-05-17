@@ -17,12 +17,12 @@
 
 from pathlib import Path
 
-from PIL import Image, ImageOps
 from pdfnik_contracts.pdf_content import (
     PdfListBlock,
     PdfPriceTableBlock,
     PdfRichText,
 )
+from PIL import Image, ImageOps
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfgen import canvas
 
@@ -30,10 +30,10 @@ from main_app.domain.work_with_pdf.actions.text.wrap_by_width import wrap_by_wid
 from main_app.domain.work_with_pdf.models.image_render_options import ImageRenderOptions
 from main_app.domain.work_with_pdf.models.pdf_layout import PdfLayout
 
-
 # ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------
+
 
 def _ensure_page(c: canvas.Canvas, layout: PdfLayout, page_height: float, y: float) -> float:
     """Переходит на новую страницу если курсор вышел за нижнее поле."""
@@ -48,13 +48,14 @@ def _ensure_page(c: canvas.Canvas, layout: PdfLayout, page_height: float, y: flo
 # Renderers
 # ---------------------------------------------------------------------------
 
+
 def render_paragraph(
-        c: canvas.Canvas,
-        rt: PdfRichText,
-        layout: PdfLayout,
-        page_width: float,
-        page_height: float,
-        y: float | None,
+    c: canvas.Canvas,
+    rt: PdfRichText,
+    layout: PdfLayout,
+    page_width: float,
+    page_height: float,
+    y: float | None,
 ) -> tuple[bool, float]:
     if y is None:
         y = page_height - layout.top_margin
@@ -85,11 +86,11 @@ def render_paragraph(
 
 
 def render_heading(
-        c: canvas.Canvas,
-        rt: PdfRichText,
-        layout: PdfLayout,
-        page_height: float,
-        y: float | None,
+    c: canvas.Canvas,
+    rt: PdfRichText,
+    layout: PdfLayout,
+    page_height: float,
+    y: float | None,
 ) -> tuple[bool, float]:
     # FIX: page_width убран — заголовок рисуется от left_margin,
     # ширина страницы здесь не используется.
@@ -107,12 +108,12 @@ def render_heading(
 
 
 def render_list(
-        c: canvas.Canvas,
-        lb: PdfListBlock,
-        layout: PdfLayout,
-        page_width: float,
-        page_height: float,
-        y: float | None,
+    c: canvas.Canvas,
+    lb: PdfListBlock,
+    layout: PdfLayout,
+    page_width: float,
+    page_height: float,
+    y: float | None,
 ) -> tuple[bool, float]:
     if y is None:
         y = page_height - layout.top_margin
@@ -146,12 +147,12 @@ def render_list(
 
 
 def render_price_table(
-        c: canvas.Canvas,
-        pb: PdfPriceTableBlock,
-        layout: PdfLayout,
-        page_width: float,
-        page_height: float,
-        y: float | None,
+    c: canvas.Canvas,
+    pb: PdfPriceTableBlock,
+    layout: PdfLayout,
+    page_width: float,
+    page_height: float,
+    y: float | None,
 ) -> tuple[bool, float]:
     if y is None:
         y = page_height - layout.top_margin
@@ -193,15 +194,16 @@ def render_price_table(
 # Image height estimation
 # ---------------------------------------------------------------------------
 
+
 def estimate_image_draw_height(
-        image_path: Path,
-        *,
-        page_width: float,
-        page_height: float,
-        margin_left: float,
-        margin_top: float,
-        margin_bottom: float,
-        options: ImageRenderOptions,
+    image_path: Path,
+    *,
+    page_width: float,
+    page_height: float,
+    margin_left: float,
+    margin_top: float,
+    margin_bottom: float,
+    options: ImageRenderOptions,
 ) -> float:
     max_w = page_width - 2 * margin_left
     max_h = page_height - margin_top - margin_bottom

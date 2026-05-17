@@ -1,8 +1,7 @@
 import sqlite3
 from pathlib import Path
-from typing import Optional
 
-from main_app.domain.work_with_pdf.actions.files.ports.run_repository import RunRow, RunRepository
+from main_app.domain.work_with_pdf.actions.files.ports.run_repository import RunRepository, RunRow
 from main_app.domain.work_with_pdf.actions.files.sqlite.schema import ensure_schema
 
 
@@ -16,7 +15,7 @@ class SqliteRunRepository(RunRepository):
         conn.row_factory = sqlite3.Row
         return conn
 
-    def get(self, run_key: str) -> Optional[RunRow]:
+    def get(self, run_key: str) -> RunRow | None:
         with self._connect() as conn:
             row = conn.execute(
                 "SELECT * FROM runs WHERE run_key = ?",

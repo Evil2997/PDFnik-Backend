@@ -1,7 +1,7 @@
 import asyncio
 import hashlib
 import time
-from typing import Any, Literal, Optional
+from typing import Any, Literal
 
 from faststream.rabbit.fastapi import RabbitRouter
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -9,7 +9,9 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from main_app.core.constants import FILES_ROOT, RUNS_DB_PATH
 from main_app.core.logger import logger
 from main_app.core.settings import settings
-from main_app.domain.work_with_pdf.actions.files.audio.audio_target_preparer import AudioTargetPreparer
+from main_app.domain.work_with_pdf.actions.files.audio.audio_target_preparer import (
+    AudioTargetPreparer,
+)
 from main_app.domain.work_with_pdf.actions.files.generate_txt_path import generate_txt_path
 from main_app.domain.work_with_pdf.actions.files.models import TranscribeConfig, YouTubeMetadata
 from main_app.domain.work_with_pdf.actions.files.prod_service import transcribe as prod_transcribe
@@ -17,10 +19,10 @@ from main_app.domain.work_with_pdf.actions.files.run_logic import make_run_key, 
 from main_app.domain.work_with_pdf.actions.files.sqlite.sqlite_repo import SqliteRunRepository
 from main_app.domain.work_with_pdf.actions.files.whisper_engine import WhisperEngine
 
-
 # ---------------------------------------------------------------------------
 # Request models
 # ---------------------------------------------------------------------------
+
 
 class TxtTarget(BaseModel):
     model_config = ConfigDict(frozen=True)
@@ -107,6 +109,7 @@ class TxtTranscribeJob(BaseModel):
 # Result model
 # ---------------------------------------------------------------------------
 
+
 class TxtDoneResult(BaseModel):
     job_id: str
     status: Literal["ok", "error"]
@@ -117,7 +120,7 @@ class TxtDoneResult(BaseModel):
     error: str | None = None
     # YouTube metadata: заполняется только для source_type="youtube"
     # Telegram-bot использует это для формирования PDF-заголовка.
-    youtube_metadata: Optional[YouTubeMetadata] = None
+    youtube_metadata: YouTubeMetadata | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -137,7 +140,9 @@ def _build_cfg(overrides: TxtCfgOverrides | None) -> TranscribeConfig:
     return TranscribeConfig(
         model=ov.model or settings.TRANSCRIBE_MODEL,
         device=ov.device or settings.TRANSCRIBE_DEVICE,
-        compute_type=ov.compute_type if ov.compute_type is not None else settings.TRANSCRIBE_COMPUTE_TYPE,
+        compute_type=ov.compute_type
+        if ov.compute_type is not None
+        else settings.TRANSCRIBE_COMPUTE_TYPE,
         threads=ov.threads or settings.TRANSCRIBE_THREADS,
         workers=ov.workers or settings.TRANSCRIBE_WORKERS,
         beam_size=ov.beam_size or settings.TRANSCRIBE_BEAM_SIZE,
@@ -234,6 +239,7 @@ async def _release_run_lock_if_unused(run_key: str, lock: asyncio.Lock) -> None:
 # Consumer registration
 # ---------------------------------------------------------------------------
 
+
 def register_txt_consumers(router: RabbitRouter) -> None:
     repo = SqliteRunRepository(RUNS_DB_PATH)
     engine = WhisperEngine()
@@ -294,7 +300,9 @@ def register_txt_consumers(router: RabbitRouter) -> None:
                 )
 
                 if res.status != "ok":
-                    raise RuntimeError(res.error or f"Transcription failed with status={res.status}")
+                    raise RuntimeError(
+                        res.error or f"Transcription failed with status={res.status}"
+                    )
 
                 final_txt_path = _persist_txt_result(res.output_txt, job.job_id)
                 txt_storage_key = final_txt_path.relative_to(FILES_ROOT.resolve()).as_posix()

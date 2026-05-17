@@ -4,7 +4,7 @@
 import asyncio
 import pathlib
 
-from pdfnik_contracts.pdf_content import BotDocument, PdfOrder, PdfBlock
+from pdfnik_contracts.pdf_content import BotDocument, PdfBlock, PdfOrder
 
 from main_app.core.constants import FILES_ROOT
 from main_app.core.logger import logger
@@ -18,10 +18,7 @@ async def generate_pdf_for_order(order: PdfOrder) -> BotDocument:
 
     blocks: list[PdfBlock] = order.items
 
-    logger.info(
-        f"Order content for chat_id={chat_id}: "
-        f"{len(blocks)} blocks"
-    )
+    logger.info(f"Order content for chat_id={chat_id}: " f"{len(blocks)} blocks")
 
     pdf_path: pathlib.Path = generate_pdf_path(chat_id)
     logger.info(f"PDF path for chat_id={chat_id}: {pdf_path}")
@@ -35,9 +32,7 @@ async def generate_pdf_for_order(order: PdfOrder) -> BotDocument:
     )
 
     pdf_storage_key = pdf_path.relative_to(FILES_ROOT).as_posix()
-    logger.info(
-        f"PDF generated for chat_id={chat_id}, storage_key={pdf_storage_key}"
-    )
+    logger.info(f"PDF generated for chat_id={chat_id}, storage_key={pdf_storage_key}")
 
     return BotDocument(
         chat_id=chat_id,

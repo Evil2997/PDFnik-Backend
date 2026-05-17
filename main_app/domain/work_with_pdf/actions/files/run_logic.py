@@ -5,10 +5,10 @@ from pathlib import Path
 
 from main_app.domain.work_with_pdf.actions.files.exceptions import TranscribeError
 from main_app.domain.work_with_pdf.actions.files.models import (
-    TranscribeConfig,
     PreparedTarget,
-    RunResult,
     RunMetrics,
+    RunResult,
+    TranscribeConfig,
 )
 from main_app.domain.work_with_pdf.actions.files.ports.run_repository import RunRepository
 from main_app.domain.work_with_pdf.actions.files.ports.transcribe_engine import TranscribeEngine
@@ -50,13 +50,13 @@ def txt_name_for_run(base_name: str, run_key: str) -> str:
 
 
 def run_once(
-        *,
-        prepared: PreparedTarget,
-        cfg: TranscribeConfig,
-        out_dir: Path,
-        repo: RunRepository,
-        engine: TranscribeEngine,
-        allow_skip: bool,
+    *,
+    prepared: PreparedTarget,
+    cfg: TranscribeConfig,
+    out_dir: Path,
+    repo: RunRepository,
+    engine: TranscribeEngine,
+    allow_skip: bool,
 ) -> RunResult:
     out_dir = out_dir.resolve()
     out_dir.mkdir(parents=True, exist_ok=True)

@@ -9,10 +9,9 @@
 - миграция схемы (атомарность)
 - get несуществующего ключа
 """
+
 import sqlite3
 from pathlib import Path
-
-import pytest
 
 from main_app.domain.work_with_pdf.actions.files.sqlite.schema import (
     RUN_COLUMNS,
@@ -22,10 +21,10 @@ from main_app.domain.work_with_pdf.actions.files.sqlite.schema import (
 )
 from main_app.domain.work_with_pdf.actions.files.sqlite.sqlite_repo import SqliteRunRepository
 
-
 # ---------------------------------------------------------------------------
 # ensure_schema
 # ---------------------------------------------------------------------------
+
 
 class TestEnsureSchema:
     def test_creates_table_and_index(self, tmp_db: Path):
@@ -101,6 +100,7 @@ class TestEnsureSchema:
 # ---------------------------------------------------------------------------
 # SqliteRunRepository
 # ---------------------------------------------------------------------------
+
 
 class TestSqliteRunRepository:
     def test_get_nonexistent_returns_none(self, tmp_db: Path):

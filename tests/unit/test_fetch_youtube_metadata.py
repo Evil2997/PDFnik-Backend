@@ -4,20 +4,19 @@
 Мокируем run_cmd чтобы не вызывать реальный yt-dlp.
 Тестируем: парсинг JSON, неполные данные, ошибки, обрезку description.
 """
+
 import json
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from main_app.domain.work_with_pdf.actions.files.audio.targets import (
-    fetch_youtube_metadata,
     _DESCRIPTION_MAX_LEN,
+    fetch_youtube_metadata,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_run_cmd_result(data: dict) -> MagicMock:
     mock = MagicMock()
@@ -41,6 +40,7 @@ _FULL_METADATA = {
 # ---------------------------------------------------------------------------
 # Успешное получение метаданных
 # ---------------------------------------------------------------------------
+
 
 class TestFetchYouTubeMetadataSuccess:
     def test_basic_fields_parsed(self):
@@ -96,6 +96,7 @@ class TestFetchYouTubeMetadataSuccess:
 # Обрезка description
 # ---------------------------------------------------------------------------
 
+
 class TestDescriptionTruncation:
     def test_long_description_truncated(self):
         long_desc = "x" * (_DESCRIPTION_MAX_LEN + 100)
@@ -136,6 +137,7 @@ class TestDescriptionTruncation:
 # Неполные / отсутствующие поля
 # ---------------------------------------------------------------------------
 
+
 class TestPartialMetadata:
     def test_minimal_data_only_url(self):
         with patch(
@@ -165,6 +167,7 @@ class TestPartialMetadata:
 # ---------------------------------------------------------------------------
 # Обработка ошибок — всегда возвращает None, не поднимает
 # ---------------------------------------------------------------------------
+
 
 class TestFetchYouTubeMetadataErrors:
     def test_run_cmd_exception_returns_none(self):

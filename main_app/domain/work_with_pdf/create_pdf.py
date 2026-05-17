@@ -40,8 +40,8 @@ pdfmetrics.registerFont(TTFont(FONT_TYPE, FONT_PATH))
 
 
 def create_pdf_from_blocks(
-        blocks: list[PdfBlock],
-        output_path: Path,
+    blocks: list[PdfBlock],
+    output_path: Path,
 ) -> None:
     logger.info(f"create_pdf: start, output={output_path}")
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -59,44 +59,62 @@ def create_pdf_from_blocks(
 
     try:
         for block in blocks:
-
             # ── Paragraph ──────────────────────────────────────────────────
             if getattr(block, "type", None) == PdfBlockType.PARAGRAPH:
                 drawn, current_y = render_paragraph(
-                    c=c, rt=block.content, layout=layout,
-                    page_width=page_width, page_height=page_height, y=current_y,
+                    c=c,
+                    rt=block.content,
+                    layout=layout,
+                    page_width=page_width,
+                    page_height=page_height,
+                    y=current_y,
                 )
                 has_content = has_content or drawn
 
             # ── Heading ────────────────────────────────────────────────────
             elif getattr(block, "type", None) == PdfBlockType.HEADING:
                 drawn, current_y = render_heading(
-                    c=c, rt=block.content, layout=layout,
-                    page_height=page_height, y=current_y,
+                    c=c,
+                    rt=block.content,
+                    layout=layout,
+                    page_height=page_height,
+                    y=current_y,
                 )
                 has_content = has_content or drawn
 
             # ── List ───────────────────────────────────────────────────────
             elif getattr(block, "type", None) == PdfBlockType.LIST:
                 drawn, current_y = render_list(
-                    c=c, lb=block, layout=layout,
-                    page_width=page_width, page_height=page_height, y=current_y,
+                    c=c,
+                    lb=block,
+                    layout=layout,
+                    page_width=page_width,
+                    page_height=page_height,
+                    y=current_y,
                 )
                 has_content = has_content or drawn
 
             # ── Price table ────────────────────────────────────────────────
             elif getattr(block, "type", None) == PdfBlockType.PRICE_TABLE:
                 drawn, current_y = render_price_table(
-                    c=c, pb=block, layout=layout,
-                    page_width=page_width, page_height=page_height, y=current_y,
+                    c=c,
+                    pb=block,
+                    layout=layout,
+                    page_width=page_width,
+                    page_height=page_height,
+                    y=current_y,
                 )
                 has_content = has_content or drawn
 
             # ── Backward compat: raw PdfTextBlock ──────────────────────────
             elif isinstance(block, PdfTextBlock):
                 drawn, current_y = render_paragraph(
-                    c=c, rt=block.content, layout=layout,
-                    page_width=page_width, page_height=page_height, y=current_y,
+                    c=c,
+                    rt=block.content,
+                    layout=layout,
+                    page_width=page_width,
+                    page_height=page_height,
+                    y=current_y,
                 )
                 has_content = has_content or drawn
 
@@ -136,8 +154,12 @@ def create_pdf_from_blocks(
 
                 if block.caption:
                     drawn2, current_y = render_paragraph(
-                        c=c, rt=block.caption, layout=layout,
-                        page_width=page_width, page_height=page_height, y=current_y,
+                        c=c,
+                        rt=block.caption,
+                        layout=layout,
+                        page_width=page_width,
+                        page_height=page_height,
+                        y=current_y,
                     )
                     has_content = has_content or drawn2
 

@@ -23,9 +23,6 @@ def register_pdf_consumers(router: RabbitRouter) -> None:
                 message=doc.model_dump(),
                 queue="pdf.send",
             )
-            logger.info(
-                f"PDF generated for chat_id={order.chat_id}, "
-                f"sent to queue=pdf.send"
-            )
+            logger.info(f"PDF generated for chat_id={order.chat_id}, " f"sent to queue=pdf.send")
         except Exception as e:
             logger.error(f"Error while handling pdf.generate: {e}")

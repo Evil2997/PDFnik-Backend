@@ -1,7 +1,7 @@
 import logging
 from pathlib import Path
 
-from main_app.domain.work_with_pdf.actions.files.models import TranscribeConfig, RunResult
+from main_app.domain.work_with_pdf.actions.files.models import RunResult, TranscribeConfig
 from main_app.domain.work_with_pdf.actions.files.ports.run_repository import RunRepository
 from main_app.domain.work_with_pdf.actions.files.ports.target_preparer import TargetPreparer
 from main_app.domain.work_with_pdf.actions.files.ports.transcribe_engine import TranscribeEngine
@@ -11,13 +11,13 @@ logger = logging.getLogger(__name__)
 
 
 def transcribe(
-        *,
-        target: str,
-        cfg: TranscribeConfig,
-        out_dir: Path,
-        repo: RunRepository,
-        engine: TranscribeEngine,
-        preparer: TargetPreparer,
+    *,
+    target: str,
+    cfg: TranscribeConfig,
+    out_dir: Path,
+    repo: RunRepository,
+    engine: TranscribeEngine,
+    preparer: TargetPreparer,
 ) -> RunResult:
     out_dir = out_dir.resolve()
     out_dir.mkdir(parents=True, exist_ok=True)
