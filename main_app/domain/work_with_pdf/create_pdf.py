@@ -2,11 +2,11 @@
 # repo: PDFnik-Backend
 
 """
-Точка входа для генерации PDF.
+PDF generation entry point.
 
-Содержит только оркестрацию:
-  1. нормализация блоков  → pdf_normalizer.py
-  2. рендеринг блоков     → pdf_renderers.py
+Orchestration only:
+  1. Normalize blocks  → pdf_normalizer.py
+  2. Render blocks     → pdf_renderers.py
 """
 
 from pathlib import Path
@@ -22,7 +22,7 @@ from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.pdfgen import canvas
 
-from main_app.core.constants import FILES_ROOT, FONT_PATH, FONT_TYPE
+from main_app.core.constants import _FONT_PATH, _FONT_TYPE, FILES_ROOT
 from main_app.core.logger import logger
 from main_app.domain.work_with_pdf.actions.images.draw_images import draw_images
 from main_app.domain.work_with_pdf.models.image_render_options import ImageRenderOptions
@@ -36,7 +36,7 @@ from main_app.domain.work_with_pdf.pdf_renderers import (
     render_price_table,
 )
 
-pdfmetrics.registerFont(TTFont(FONT_TYPE, FONT_PATH))
+pdfmetrics.registerFont(TTFont(_FONT_TYPE, _FONT_PATH))
 
 
 def create_pdf_from_blocks(
@@ -59,7 +59,6 @@ def create_pdf_from_blocks(
 
     try:
         for block in blocks:
-            # ── Paragraph ──────────────────────────────────────────────────
             if getattr(block, "type", None) == PdfBlockType.PARAGRAPH:
                 drawn, current_y = render_paragraph(
                     c=c,
@@ -71,7 +70,6 @@ def create_pdf_from_blocks(
                 )
                 has_content = has_content or drawn
 
-            # ── Heading ────────────────────────────────────────────────────
             elif getattr(block, "type", None) == PdfBlockType.HEADING:
                 drawn, current_y = render_heading(
                     c=c,
@@ -82,7 +80,6 @@ def create_pdf_from_blocks(
                 )
                 has_content = has_content or drawn
 
-            # ── List ───────────────────────────────────────────────────────
             elif getattr(block, "type", None) == PdfBlockType.LIST:
                 drawn, current_y = render_list(
                     c=c,
@@ -94,7 +91,7 @@ def create_pdf_from_blocks(
                 )
                 has_content = has_content or drawn
 
-            # ── Price table ────────────────────────────────────────────────
+            # Price table
             elif getattr(block, "type", None) == PdfBlockType.PRICE_TABLE:
                 drawn, current_y = render_price_table(
                     c=c,
@@ -106,7 +103,6 @@ def create_pdf_from_blocks(
                 )
                 has_content = has_content or drawn
 
-            # ── Backward compat: raw PdfTextBlock ──────────────────────────
             elif isinstance(block, PdfTextBlock):
                 drawn, current_y = render_paragraph(
                     c=c,
@@ -118,7 +114,6 @@ def create_pdf_from_blocks(
                 )
                 has_content = has_content or drawn
 
-            # ── Image ──────────────────────────────────────────────────────
             elif isinstance(block, PdfImageBlock):
                 image_path = FILES_ROOT / block.image.storage_key
                 options = ImageRenderOptions(
@@ -170,7 +165,7 @@ def create_pdf_from_blocks(
             c.drawString(
                 layout.left_margin,
                 page_height - layout.top_margin,
-                "Пустой PDF (нет содержимого)",
+                "Empty PDF (no content)",
             )
 
         c.save()
