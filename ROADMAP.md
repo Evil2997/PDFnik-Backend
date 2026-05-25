@@ -20,8 +20,6 @@
 - Coverage: Backend ≥70%, TelegramBot ≥65%
 
 ### Known limitations
-- Photos: one per page (no multi-image layout)
-- /cancel has no confirmation step
 - DLQ is log-only (no alerting, no Telegram notification)
 
 ---
@@ -32,13 +30,13 @@
 - [x] Health check endpoint (GET /health)
 - [x] Whisper model configurable via env (TRANSCRIBE_MODEL=large-v3)
 - [x] YouTube → PDF for long transcripts — both short and document delivery paths now generate PDF
-- [ ] /cancel confirmation guard
+- [x] /cancel confirmation guard
 
 ---
 
 ## P2 — Features (next)
 
-- [ ] Multi-image layout — fit 2 landscape images per page
+- [x] Multi-image layout — fit 2 landscape images per page
 - [ ] Batch YouTube — multiple URLs → one combined PDF
 - [ ] LLM summary — short summary block at top of YouTube PDF
 - [ ] OCR — extract text from images, include in PDF

@@ -10,8 +10,8 @@ from main_app.domain.work_with_pdf.actions.files.models import PreparedTarget, Y
 
 logger = logging.getLogger(__name__)
 
-# Максимальная длина description в метаданных.
-# Полное описание может быть десятки тысяч символов — обрезаем.
+# Maximum length of the description field in metadata.
+# Full descriptions can be tens of thousands of characters — truncate.
 _DESCRIPTION_MAX_LEN = 500
 
 
@@ -35,12 +35,10 @@ def is_url(target: str) -> bool:
 
 def fetch_youtube_metadata(url: str) -> YouTubeMetadata | None:
     """
-    Получает метаданные YouTube-видео через yt-dlp --dump-json.
+    Fetches YouTube video metadata via yt-dlp --dump-json.
 
-    Не скачивает видео — только JSON с метаданными.
-    При любой ошибке возвращает None (некритично для основного pipeline).
-
-    Возвращает YouTubeMetadata или None.
+    Does not download video — only JSON metadata.
+    Returns None on any error (non-critical for the main pipeline).
     """
     try:
         result = run_cmd(
@@ -71,8 +69,7 @@ def fetch_youtube_metadata(url: str) -> YouTubeMetadata | None:
         )
 
     except Exception as e:
-        # Метаданные — вспомогательная информация.
-        # Не прерываем pipeline при ошибке их получения.
+        # Metadata is supplementary — do not interrupt the pipeline on failure.
         logger.warning("fetch_youtube_metadata failed for %s: %s", url, e)
         return None
 
@@ -151,8 +148,8 @@ def prepare_target(target: str, work_dir: Path) -> PreparedTarget:
     youtube_metadata: YouTubeMetadata | None = None
 
     if is_url(target):
-        # Сначала получаем метаданные (не скачивает аудио, быстро).
-        # Делаем до скачивания: если URL невалидный — узнаём сразу.
+        # Fetch metadata first (no audio download, fast).
+        # Done before downloading: invalid URLs fail early.
         youtube_metadata = fetch_youtube_metadata(target)
         if youtube_metadata:
             logger.info(

@@ -24,7 +24,11 @@ from reportlab.pdfgen import canvas
 
 from main_app.core.constants import _FONT_PATH, _FONT_TYPE, FILES_ROOT
 from main_app.core.logger import logger
-from main_app.domain.work_with_pdf.actions.images.draw_images import draw_images
+from main_app.domain.work_with_pdf.actions.images.draw_images import (
+    _is_landscape,
+    draw_image_pair,
+    draw_images,
+)
 from main_app.domain.work_with_pdf.models.image_render_options import ImageRenderOptions
 from main_app.domain.work_with_pdf.models.pdf_layout import PdfLayout
 from main_app.domain.work_with_pdf.pdf_normalizer import normalize_document_blocks
@@ -58,7 +62,39 @@ def create_pdf_from_blocks(
     current_y: float | None = None
 
     try:
-        for block in blocks:
+        blocks_list = list(blocks)
+        i = 0
+        while i < len(blocks_list):
+            block = blocks_list[i]
+
+            if (
+                isinstance(block, PdfImageBlock)
+                and block.caption is None
+                and i + 1 < len(blocks_list)
+            ):
+                next_block = blocks_list[i + 1]
+                if isinstance(next_block, PdfImageBlock) and next_block.caption is None:
+                    img_path_1 = FILES_ROOT / block.image.storage_key
+                    img_path_2 = FILES_ROOT / next_block.image.storage_key
+                    if _is_landscape(img_path_1) and _is_landscape(img_path_2):
+                        pair_options = ImageRenderOptions(allow_upscale=True)
+                        drawn = draw_image_pair(
+                            c=c,
+                            image_path_1=img_path_1,
+                            image_path_2=img_path_2,
+                            page_width=page_width,
+                            page_height=page_height,
+                            margin_left=layout.left_margin,
+                            margin_top=layout.top_margin,
+                            margin_bottom=layout.bottom_margin,
+                            start_new_page=has_content,
+                            options=pair_options,
+                        )
+                        has_content = has_content or drawn
+                        current_y = layout.bottom_margin - 1.0
+                        i += 2
+                        continue
+
             if getattr(block, "type", None) == PdfBlockType.PARAGRAPH:
                 drawn, current_y = render_paragraph(
                     c=c,
@@ -160,6 +196,8 @@ def create_pdf_from_blocks(
 
             else:
                 logger.warning(f"Unknown block type: {getattr(block, 'type', None)}")
+
+            i += 1
 
         if not has_content:
             c.drawString(

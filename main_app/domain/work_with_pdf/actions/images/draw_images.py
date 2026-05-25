@@ -138,6 +138,65 @@ def _compute_draw_size_contain(
     return draw_w, draw_h
 
 
+def _is_landscape(image_path: Path) -> bool:
+    """Returns True if the image is wider than tall after EXIF orientation."""
+    try:
+        with Image.open(image_path) as im_raw:
+            img = ImageOps.exif_transpose(im_raw)
+            w, h = img.size
+            return w > h
+    except Exception:
+        return False
+
+
+def draw_image_pair(
+    c: canvas.Canvas,
+    image_path_1: Path,
+    image_path_2: Path,
+    page_width: float,
+    page_height: float,
+    margin_left: float,
+    margin_top: float,
+    margin_bottom: float,
+    start_new_page: bool = True,
+    options: ImageRenderOptions | None = None,
+    gap: float = 8.0,
+) -> bool:
+    """Renders two landscape images stacked vertically on one page."""
+    options = options or ImageRenderOptions()
+    if start_new_page:
+        c.showPage()
+    max_w = page_width - 2 * margin_left
+    half_h = (page_height - margin_top - margin_bottom - gap) / 2
+    slot_tops = [
+        page_height - margin_top,
+        page_height - margin_top - half_h - gap,
+    ]
+    any_drawn = False
+    for idx, img_path in enumerate((Path(image_path_1), Path(image_path_2))):
+        try:
+            with Image.open(img_path) as im_raw:
+                img = ImageOps.exif_transpose(im_raw).convert("RGB")
+            width_px, height_px = img.size
+            draw_w, draw_h = _compute_draw_size_contain(
+                width_px=width_px,
+                height_px=height_px,
+                max_w=max_w,
+                max_h=half_h,
+                allow_upscale=options.allow_upscale,
+            )
+            x = (page_width - draw_w) / 2
+            y = slot_tops[idx] - draw_h
+            img_reader = ImageReader(img)
+            c.drawImage(img_reader, x, y, draw_w, draw_h)
+            any_drawn = True
+        except Exception as exc:
+            logger.error(
+                "Failed to process image in pair idx=%s path=%s err=%s", idx, img_path, exc
+            )
+    return any_drawn
+
+
 def _maybe_resample_to_dpi(
     img,
     width_px: int,

@@ -8,7 +8,7 @@ RUN_COLUMNS: tuple[str, ...] = (
     "created_at",
 )
 
-# Используется только для первичного создания (не в транзакции миграции).
+# Used only for initial creation (not inside a migration transaction).
 _SCHEMA_SQL_INITIAL = """
 CREATE TABLE IF NOT EXISTS runs (
     run_key    TEXT PRIMARY KEY,
@@ -33,8 +33,8 @@ def _needs_migration(existing_cols: list[str]) -> bool:
 
 def _run_migration(conn: sqlite3.Connection, existing_cols: list[str]) -> None:
     """
-    Выполняет DDL-миграцию: rename → create → copy → drop → index.
-    Вызывается из-под BEGIN EXCLUSIVE — атомарная операция.
+    Runs DDL migration: rename → create → copy → drop → index.
+    Called under BEGIN EXCLUSIVE — atomic operation.
     """
     conn.execute("ALTER TABLE runs RENAME TO runs_old")
 
@@ -47,7 +47,7 @@ def _run_migration(conn: sqlite3.Connection, existing_cols: list[str]) -> None:
         )
     """)
 
-    # Копируем только те колонки, которые есть в обеих версиях схемы
+    # Copy only columns present in both schema versions.
     cols_old = set(existing_cols)
     copy_cols = ["run_key", "status", "output_txt"]
     if "created_at" in cols_old:
@@ -63,26 +63,25 @@ def ensure_schema(db_path: Path) -> None:
     db_path = db_path.resolve()
     db_path.parent.mkdir(parents=True, exist_ok=True)
 
-    # isolation_level=None → autocommit; PRAGMAs не работают внутри транзакций,
-    # а BEGIN EXCLUSIVE нужен нам явно только для миграции.
+    # isolation_level=None → autocommit; PRAGMAs must run outside a transaction,
+    # and BEGIN EXCLUSIVE is only needed explicitly for migration.
     conn = sqlite3.connect(str(db_path), isolation_level=None)
     try:
-        # PRAGMA должны быть вне транзакции
+        # PRAGMAs must run outside a transaction.
         conn.execute("PRAGMA journal_mode=WAL")
         conn.execute("PRAGMA foreign_keys=ON")
 
         existing_cols = _get_existing_columns(conn)
 
         if not existing_cols:
-            # Чистая БД — создаём схему
+            # Fresh DB — create schema.
             conn.executescript(_SCHEMA_SQL_INITIAL)
             return
 
         if _needs_migration(existing_cols):
-            # FIX: вся миграция в одной EXCLUSIVE транзакции.
-            # Старый код использовал executescript() который делает неявный COMMIT
-            # до начала работы, что могло оставить БД в полусломанном состоянии
-            # при крэше (runs_old существует, runs не существует).
+            # Run the full migration inside one EXCLUSIVE transaction.
+            # executescript() issues an implicit COMMIT before running, which
+            # could leave the DB half-broken on a crash (runs_old exists, runs does not).
             conn.execute("BEGIN EXCLUSIVE")
             try:
                 _run_migration(conn, existing_cols)
@@ -92,7 +91,7 @@ def ensure_schema(db_path: Path) -> None:
                 raise
             return
 
-        # Схема актуальна — ничего не делаем (индексы уже созданы при инициализации)
+        # Schema is up to date — nothing to do (indexes already created on init).
 
     finally:
         conn.close()
