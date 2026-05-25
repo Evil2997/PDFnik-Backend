@@ -15,6 +15,9 @@ dependencies = [
     "pydantic==2.11.10",
     "pydantic-settings==2.11.0",
     "pdfnik-schemes @ git+https://github.com/Evil2997/PDFnik-Schemes@v1.2.1",
+    "anthropic>=0.49.0",
+    "openai>=1.77.0",
+    "httpx>=0.28.0",
 ]
 
 [project.optional-dependencies]

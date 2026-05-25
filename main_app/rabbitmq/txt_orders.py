@@ -9,6 +9,8 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from main_app.core.constants import FILES_ROOT, RUNS_DB_PATH
 from main_app.core.logger import logger
 from main_app.core.settings import settings
+from main_app.domain.summarize.base import SummaryProvider
+from main_app.domain.summarize.factory import get_summary_provider
 from main_app.domain.work_with_pdf.actions.files.audio.audio_target_preparer import (
     AudioTargetPreparer,
 )
@@ -118,9 +120,10 @@ class TxtDoneResult(BaseModel):
     delivery: TxtDelivery | None = None
     cached: bool | None = None
     error: str | None = None
-    # YouTube metadata: заполняется только для source_type="youtube"
-    # Telegram-bot использует это для формирования PDF-заголовка.
+    # Populated only for YouTube jobs (source_type="youtube").
     youtube_metadata: YouTubeMetadata | None = None
+    # LLM-generated summary; None when provider is disabled or call failed.
+    summary: str | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -235,6 +238,18 @@ async def _release_run_lock_if_unused(run_key: str, lock: asyncio.Lock) -> None:
             _inflight_locks.pop(run_key, None)
 
 
+async def _maybe_summarize(
+    transcript_text: str,
+    is_youtube: bool,
+    provider: SummaryProvider | None,
+) -> str | None:
+    if not is_youtube or provider is None or not transcript_text:
+        return None
+    truncated = transcript_text[: settings.SUMMARY_MAX_CHARS]
+    summary = await provider.summarize(truncated)
+    return summary or None
+
+
 # ---------------------------------------------------------------------------
 # Consumer registration
 # ---------------------------------------------------------------------------
@@ -244,6 +259,7 @@ def register_txt_consumers(router: RabbitRouter) -> None:
     repo = SqliteRunRepository(RUNS_DB_PATH)
     engine = WhisperEngine()
     preparer = AudioTargetPreparer()
+    summary_provider = get_summary_provider(settings)
 
     @router.subscriber("txt.transcribe")
     async def handle_txt_transcribe(data: dict[str, Any]):
@@ -306,6 +322,11 @@ def register_txt_consumers(router: RabbitRouter) -> None:
 
                 final_txt_path = _persist_txt_result(res.output_txt, job.job_id)
                 txt_storage_key = final_txt_path.relative_to(FILES_ROOT.resolve()).as_posix()
+
+                is_youtube = job.target.kind == "url" and bool(res.youtube_metadata)
+                transcript_text = final_txt_path.read_text(encoding="utf-8")
+                summary = await _maybe_summarize(transcript_text, is_youtube, summary_provider)
+
                 wall_time = round(time.time() - started, 3)
 
                 await _publish_done(
@@ -317,7 +338,8 @@ def register_txt_consumers(router: RabbitRouter) -> None:
                         reply=job.reply,
                         delivery=job.delivery,
                         cached=res.cached,
-                        youtube_metadata=res.youtube_metadata,  # ← прокидываем
+                        youtube_metadata=res.youtube_metadata,
+                        summary=summary,
                     ),
                 )
 
