@@ -6,6 +6,7 @@ RUN_COLUMNS: tuple[str, ...] = (
     "status",
     "output_txt",
     "created_at",
+    "summary",
 )
 
 # Used only for initial creation (not inside a migration transaction).
@@ -14,7 +15,8 @@ CREATE TABLE IF NOT EXISTS runs (
     run_key    TEXT PRIMARY KEY,
     status     TEXT NOT NULL,
     output_txt TEXT NOT NULL,
-    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+    summary    TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_runs_status ON runs(status);
 """
@@ -43,7 +45,8 @@ def _run_migration(conn: sqlite3.Connection, existing_cols: list[str]) -> None:
             run_key    TEXT PRIMARY KEY,
             status     TEXT NOT NULL,
             output_txt TEXT NOT NULL,
-            created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+            created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+            summary    TEXT
         )
     """)
 

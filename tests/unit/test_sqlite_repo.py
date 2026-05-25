@@ -1,13 +1,14 @@
 """
-Тесты для SqliteRunRepository и ensure_schema.
+Tests for SqliteRunRepository and ensure_schema.
 
-Тестируем:
-- первичное создание схемы
+Covers:
+- initial schema creation
 - upsert + get
-- обновление существующей записи
+- updating an existing row
 - list_all
-- миграция схемы (атомарность)
-- get несуществующего ключа
+- schema migration (atomicity)
+- get of a non-existent key
+- get_summary / save_summary caching
 """
 
 import sqlite3
@@ -35,7 +36,6 @@ class TestEnsureSchema:
             cols = _get_existing_columns(conn)
             assert set(cols) == set(RUN_COLUMNS)
 
-            # индекс создан
             indexes = conn.execute(
                 "SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='runs'"
             ).fetchall()
@@ -43,7 +43,7 @@ class TestEnsureSchema:
             assert "idx_runs_status" in index_names
 
     def test_idempotent(self, tmp_db: Path):
-        """Двойной вызов ensure_schema не ломает БД."""
+        """Calling ensure_schema twice does not corrupt the DB."""
         ensure_schema(tmp_db)
         ensure_schema(tmp_db)
 
@@ -58,13 +58,9 @@ class TestEnsureSchema:
         assert mode == "wal"
 
     def test_migration_from_old_schema(self, tmp_db: Path):
-        """
-        Если в БД старая схема (например без created_at) —
-        ensure_schema должна атомарно мигрировать данные.
-        """
+        """ensure_schema atomically migrates a DB with an outdated schema."""
         tmp_db.parent.mkdir(parents=True, exist_ok=True)
 
-        # Создаём старую схему вручную
         with sqlite3.connect(str(tmp_db)) as conn:
             conn.execute("""
                 CREATE TABLE runs (
@@ -76,14 +72,13 @@ class TestEnsureSchema:
             conn.execute("INSERT INTO runs VALUES ('old_key', 'ok', '/tmp/old.txt')")
             conn.commit()
 
-        # Применяем миграцию
         ensure_schema(tmp_db)
 
         with sqlite3.connect(str(tmp_db)) as conn:
             cols = _get_existing_columns(conn)
             assert "created_at" in cols
+            assert "summary" in cols
 
-            # Данные сохранились
             row = conn.execute("SELECT * FROM runs WHERE run_key='old_key'").fetchone()
             assert row is not None
 
@@ -148,7 +143,7 @@ class TestSqliteRunRepository:
         assert result.get("created_at") is not None
 
     def test_concurrent_upserts_same_key(self, tmp_db: Path):
-        """Несколько последовательных upsert по одному ключу не создают дубли."""
+        """Multiple sequential upserts on the same key do not create duplicates."""
         repo = SqliteRunRepository(tmp_db)
         for i in range(5):
             repo.upsert({"run_key": "same_key", "status": "ok", "output_txt": f"/f{i}.txt"})
@@ -156,3 +151,34 @@ class TestSqliteRunRepository:
         rows = repo.list_all()
         assert len(rows) == 1
         assert rows[0]["output_txt"] == "/f4.txt"
+
+
+class TestSqliteRunRepositorySummary:
+    def test_get_summary_returns_none_when_no_row(self, tmp_db: Path):
+        repo = SqliteRunRepository(tmp_db)
+        assert repo.get_summary("nonexistent") is None
+
+    def test_get_summary_returns_none_before_save(self, tmp_db: Path):
+        repo = SqliteRunRepository(tmp_db)
+        repo.upsert({"run_key": "k1", "status": "ok", "output_txt": "/a.txt"})
+        assert repo.get_summary("k1") is None
+
+    def test_save_and_get_summary(self, tmp_db: Path):
+        repo = SqliteRunRepository(tmp_db)
+        repo.upsert({"run_key": "k1", "status": "ok", "output_txt": "/a.txt"})
+        repo.save_summary("k1", "This is the summary.")
+        assert repo.get_summary("k1") == "This is the summary."
+
+    def test_save_summary_overwrites(self, tmp_db: Path):
+        repo = SqliteRunRepository(tmp_db)
+        repo.upsert({"run_key": "k1", "status": "ok", "output_txt": "/a.txt"})
+        repo.save_summary("k1", "First summary.")
+        repo.save_summary("k1", "Updated summary.")
+        assert repo.get_summary("k1") == "Updated summary."
+
+    def test_summary_isolated_per_run_key(self, tmp_db: Path):
+        repo = SqliteRunRepository(tmp_db)
+        repo.upsert({"run_key": "k1", "status": "ok", "output_txt": "/a.txt"})
+        repo.upsert({"run_key": "k2", "status": "ok", "output_txt": "/b.txt"})
+        repo.save_summary("k1", "Summary for k1.")
+        assert repo.get_summary("k2") is None

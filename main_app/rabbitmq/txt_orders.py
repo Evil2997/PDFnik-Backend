@@ -325,7 +325,16 @@ def register_txt_consumers(router: RabbitRouter) -> None:
 
                 is_youtube = job.target.kind == "url" and bool(res.youtube_metadata)
                 transcript_text = final_txt_path.read_text(encoding="utf-8")
-                summary = await _maybe_summarize(transcript_text, is_youtube, summary_provider)
+
+                summary: str | None = None
+                if is_youtube:
+                    summary = repo.get_summary(run_key)
+                    if summary is None and summary_provider is not None:
+                        summary = await _maybe_summarize(
+                            transcript_text, is_youtube, summary_provider
+                        )
+                        if summary:
+                            repo.save_summary(run_key, summary)
 
                 wall_time = round(time.time() - started, 3)
 

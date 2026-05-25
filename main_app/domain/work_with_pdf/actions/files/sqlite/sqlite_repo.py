@@ -45,3 +45,21 @@ class SqliteRunRepository(RunRepository):
         with self._connect() as conn:
             conn.execute(sql, values)
             conn.commit()
+
+    def get_summary(self, run_key: str) -> str | None:
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT summary FROM runs WHERE run_key = ?",
+                (run_key,),
+            ).fetchone()
+            if row is None:
+                return None
+            return row[0]
+
+    def save_summary(self, run_key: str, summary: str) -> None:
+        with self._connect() as conn:
+            conn.execute(
+                "UPDATE runs SET summary = ? WHERE run_key = ?",
+                (summary, run_key),
+            )
+            conn.commit()
