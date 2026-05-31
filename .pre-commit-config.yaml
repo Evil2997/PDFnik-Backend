@@ -29,6 +29,16 @@ repos:
         name: Check for large files
         args: [--maxkb=1024]
 
+  # ── mypy: static type checking ───────────────────────────────────────────
+  - repo: local
+    hooks:
+      - id: mypy
+        name: mypy
+        entry: uv run mypy .
+        language: system
+        types: [python]
+        pass_filenames: false
+
   # ── Проверка secrets ──────────────────────────────────────────────────────
   # Защита от случайного коммита .env, токенов, ключей.
   - repo: https://github.com/Yelp/detect-secrets
