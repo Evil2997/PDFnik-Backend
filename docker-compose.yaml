@@ -73,10 +73,6 @@ services:
     env_file:
       - .env
     depends_on:
-      # FIX 1: зависимость от telegram-bot удалена — данные идут ОТ pdf-service К bot,
-      #         а не наоборот. Добавление обратной зависимости могло создавать
-      #         deadlock при старте (bot ждал чего-то, pdf-service ждал bot).
-      # FIX 2: убран sleep 5 — заменён на condition: service_healthy у rabbitmq.
       rabbitmq:
         condition: service_healthy
       redis:
