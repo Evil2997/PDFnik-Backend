@@ -96,6 +96,7 @@ def transcribe_playlist(
     engine: TranscribeEngine,
     preparer: TargetPreparer,
     on_progress: Callable[[int, int, str, YouTubeMetadata | None], None] | None = None,
+    on_cache_summary: Callable[[int, int], None] | None = None,
 ) -> RunResult:
     out_dir = out_dir.resolve()
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -106,6 +107,7 @@ def transcribe_playlist(
     sections: list[str] = []
     total_wall = 0.0
     total_duration = 0.0
+    cached_streak = 0
 
     for i, url in enumerate(video_urls):
         video_dir = out_dir / f"video_{i:03d}"
@@ -133,12 +135,23 @@ def transcribe_playlist(
             header = _format_video_section_header(prepared.youtube_metadata, i)
             sections.append(f"{header}\n\n{text}")
 
-            if on_progress:
-                with contextlib.suppress(Exception):
-                    on_progress(i + 1, len(video_urls), url, prepared.youtube_metadata)
+            if res.cached:
+                cached_streak += 1
+            else:
+                if cached_streak > 0 and on_cache_summary:
+                    with contextlib.suppress(Exception):
+                        on_cache_summary(cached_streak, len(video_urls))
+                    cached_streak = 0
+                if on_progress:
+                    with contextlib.suppress(Exception):
+                        on_progress(i + 1, len(video_urls), url, prepared.youtube_metadata)
 
         except Exception as e:
             logger.warning("[playlist] video %d/%d (%s) error: %s", i + 1, len(video_urls), url, e)
+
+    if cached_streak > 0 and on_cache_summary:
+        with contextlib.suppress(Exception):
+            on_cache_summary(cached_streak, len(video_urls))
 
     if not sections:
         raise RuntimeError(f"All {len(video_urls)} videos in playlist failed: {playlist_url}")

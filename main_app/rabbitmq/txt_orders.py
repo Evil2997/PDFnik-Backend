@@ -333,6 +333,18 @@ def register_txt_consumers(router: RabbitRouter) -> None:
                                 queue="txt.progress",
                             )
 
+                    async def _publish_cache_summary(cached_count: int, total: int) -> None:
+                        if job.reply:
+                            await router.broker.publish(
+                                {
+                                    "job_id": job.job_id,
+                                    "chat_id": job.reply.chat_id,
+                                    "cached_count": cached_count,
+                                    "total": total,
+                                },
+                                queue="txt.cache_summary",
+                            )
+
                     def on_progress(
                         current: int,
                         total: int,
@@ -348,6 +360,15 @@ def register_txt_consumers(router: RabbitRouter) -> None:
                         except Exception as e:
                             logger.warning("[TXT] progress publish failed: %s", e)
 
+                    def on_cache_summary(cached_count: int, total: int) -> None:
+                        fut = asyncio.run_coroutine_threadsafe(
+                            _publish_cache_summary(cached_count, total), loop
+                        )
+                        try:
+                            fut.result(timeout=5)
+                        except Exception as e:
+                            logger.warning("[TXT] cache summary publish failed: %s", e)
+
                     res = await loop.run_in_executor(
                         None,
                         lambda: transcribe_playlist(
@@ -358,6 +379,7 @@ def register_txt_consumers(router: RabbitRouter) -> None:
                             engine=engine,
                             preparer=preparer,
                             on_progress=on_progress,
+                            on_cache_summary=on_cache_summary,
                         ),
                     )
                 else:
