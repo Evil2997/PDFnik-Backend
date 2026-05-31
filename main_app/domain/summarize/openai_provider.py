@@ -18,7 +18,7 @@ class OpenAISummaryProvider:
                 max_tokens=_MAX_TOKENS,
                 messages=[{"role": "user", "content": SUMMARY_PROMPT.format(text=text)}],
             )
-            return resp.choices[0].message.content.strip()
+            return (resp.choices[0].message.content or "").strip()
         except Exception as exc:
             logger.warning("OpenAISummaryProvider failed: %s", exc)
             return ""

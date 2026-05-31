@@ -54,7 +54,7 @@ class SqliteRunRepository(RunRepository):
             ).fetchone()
             if row is None:
                 return None
-            return row[0]
+            return str(row[0])
 
     def save_summary(self, run_key: str, summary: str) -> None:
         with self._connect() as conn:

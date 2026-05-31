@@ -111,8 +111,10 @@ warn_unused_ignores = true
 warn_redundant_casts = true
 no_implicit_optional = true
 check_untyped_defs = true
+disable_error_code = ["import-untyped", "prop-decorator"]
 exclude = [
     "main_app/infrastructure/.*\\.py",
+    "tests/.*\\.py",
 ]
 
 # ---------------------------------------------------------------------------

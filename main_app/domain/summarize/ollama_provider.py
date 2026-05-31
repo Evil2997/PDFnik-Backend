@@ -23,7 +23,7 @@ class OllamaSummaryProvider:
                     },
                 )
                 resp.raise_for_status()
-                return resp.json()["response"].strip()
+                return str(resp.json()["response"]).strip()
         except Exception as exc:
             logger.warning("OllamaSummaryProvider failed: %s", exc)
             return ""

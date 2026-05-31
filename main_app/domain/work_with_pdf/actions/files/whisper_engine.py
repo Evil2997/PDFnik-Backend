@@ -80,6 +80,7 @@ class WhisperEngine:
         """
         with self._lock:
             self.load(cfg)
+            assert self._model is not None
 
             segments, info = self._model.transcribe(
                 str(wav_path),

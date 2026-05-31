@@ -18,9 +18,7 @@ TXT_OUTPUT_DIR: Final[pathlib.Path] = FILES_ROOT / "txts"
 RUNS_DB_PATH: Final[pathlib.Path] = FILES_ROOT / "runs.db"
 
 # Font is installed from fonts-dejavu-core in the Docker image.
-# Path is computed relative to this file so it works in Docker (/app)
-# without any environment variable or repository font files.
-# create_pdf.py is at main_app/domain/work_with_pdf/ → parents[3] = project root.
-_PROJECT_ROOT = pathlib.Path(__file__).resolve().parents[3]
+# Path is computed relative to this file: main_app/core/ → parents[2] = /app.
+_PROJECT_ROOT = pathlib.Path(__file__).resolve().parents[2]
 _FONT_TYPE = "DejaVuSans"
 _FONT_PATH = str(_PROJECT_ROOT / "fonts" / "DejaVuSans.ttf")

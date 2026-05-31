@@ -1,4 +1,5 @@
 import anthropic
+from anthropic.types import TextBlock
 
 from main_app.core.logger import logger
 from main_app.domain.summarize.base import SUMMARY_PROMPT
@@ -18,7 +19,8 @@ class AnthropicSummaryProvider:
                 max_tokens=_MAX_TOKENS,
                 messages=[{"role": "user", "content": SUMMARY_PROMPT.format(text=text)}],
             )
-            return msg.content[0].text.strip()
+            block = msg.content[0]
+            return block.text.strip() if isinstance(block, TextBlock) else ""
         except Exception as exc:
             logger.warning("AnthropicSummaryProvider failed: %s", exc)
             return ""

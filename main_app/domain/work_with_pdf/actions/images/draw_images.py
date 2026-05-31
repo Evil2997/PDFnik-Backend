@@ -232,7 +232,7 @@ def _maybe_resample_to_dpi(
     new_w = max(1, int(width_px * scale))
     new_h = max(1, int(height_px * scale))
 
-    img_resized = img.resize((new_w, new_h), Image.LANCZOS)
+    img_resized = img.resize((new_w, new_h), Image.Resampling.LANCZOS)
 
     # Keep draw_w and draw_h unchanged — the size on the page remains the same.
     return img_resized, new_w, new_h, draw_w, draw_h
