@@ -25,7 +25,7 @@ class YouTubeMetadata(BaseModel):
     def duration_str(self) -> str:
         """Human-readable duration: '1:23:45' or '3:21'."""
         if not self.duration_sec:
-            return "неизвестно"
+            return "unknown"
         total = int(self.duration_sec)
         h, rem = divmod(total, 3600)
         m, s = divmod(rem, 60)

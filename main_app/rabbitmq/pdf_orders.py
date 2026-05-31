@@ -1,4 +1,4 @@
-# /home/dmitriy/PycharmProjects/FastAPI-Learning/main_app/rabbitmq/pdf_orders.py
+# /home/dmitriy/PycharmProjects/PDFnik-Backend/main_app/rabbitmq/pdf_orders.py
 # repo: PDFnik-Backend
 
 from faststream.rabbit.fastapi import RabbitRouter

@@ -199,6 +199,59 @@ def prepare_target(target: str, work_dir: Path) -> PreparedTarget:
     )
 
 
+# ----------------------------
+# Playlist support
+# ----------------------------
+
+
+def is_playlist_url(url: str) -> bool:
+    """Returns True for youtube.com/playlist?list=... URLs."""
+    return "youtube.com/playlist" in url.lower()
+
+
+def fetch_playlist_video_urls(playlist_url: str) -> list[str]:
+    """Returns all video URLs from a YouTube playlist via yt-dlp --flat-playlist."""
+    result = run_cmd(
+        [
+            "yt-dlp",
+            "--flat-playlist",
+            "--print",
+            "%(webpage_url)s",
+            "--quiet",
+            playlist_url,
+        ]
+    )
+    urls = [line.strip() for line in result.stdout.splitlines() if line.strip()]
+    if not urls:
+        raise TargetPrepareError(f"No videos found in playlist: {playlist_url}")
+    logger.info("Playlist has %d videos: %s", len(urls), playlist_url)
+    return urls
+
+
+def fetch_playlist_metadata(playlist_url: str) -> YouTubeMetadata | None:
+    """Fetches playlist-level metadata (title, channel) without downloading videos."""
+    try:
+        result = run_cmd(
+            [
+                "yt-dlp",
+                "--flat-playlist",
+                "-J",
+                "--quiet",
+                playlist_url,
+            ]
+        )
+        data: dict = json.loads(result.stdout)
+        return YouTubeMetadata(
+            url=playlist_url,
+            title=data.get("title"),
+            channel=data.get("channel") or data.get("uploader"),
+            uploader=data.get("uploader"),
+        )
+    except Exception as e:
+        logger.warning("fetch_playlist_metadata failed for %s: %s", playlist_url, e)
+        return None
+
+
 def ffmpeg_make_sample(src_wav: Path, dst_wav: Path, *, seconds: int) -> None:
     if seconds <= 0:
         raise ValueError(f"seconds must be > 0, got {seconds}")

@@ -1,4 +1,4 @@
-# /home/dmitriy/PycharmProjects/FastAPI-Learning/main_app/api/routes/health.py
+# /home/dmitriy/PycharmProjects/PDFnik-Backend/main_app/api/routes/health.py
 # repo: PDFnik-Backend
 
 from fastapi import APIRouter

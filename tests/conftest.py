@@ -1,4 +1,4 @@
-# /home/dmitriy/PycharmProjects/FastAPI-Learning/tests/conftest.py
+# /home/dmitriy/PycharmProjects/PDFnik-Backend/tests/conftest.py
 # repo: PDFnik-Backend
 
 """

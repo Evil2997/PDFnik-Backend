@@ -10,13 +10,23 @@ from main_app.core.constants import FILES_ROOT, RUNS_DB_PATH
 from main_app.core.logger import logger
 from main_app.core.settings import settings
 from main_app.domain.summarize.base import SummaryProvider
+from main_app.domain.summarize.extract_prompts import DEFAULT_MODE, EXTRACT_PROMPTS
 from main_app.domain.summarize.factory import get_summary_provider
 from main_app.domain.work_with_pdf.actions.files.audio.audio_target_preparer import (
     AudioTargetPreparer,
 )
+from main_app.domain.work_with_pdf.actions.files.audio.targets import is_playlist_url
 from main_app.domain.work_with_pdf.actions.files.generate_txt_path import generate_txt_path
-from main_app.domain.work_with_pdf.actions.files.models import TranscribeConfig, YouTubeMetadata
-from main_app.domain.work_with_pdf.actions.files.prod_service import transcribe as prod_transcribe
+from main_app.domain.work_with_pdf.actions.files.models import (
+    TranscribeConfig,
+    YouTubeMetadata,
+)
+from main_app.domain.work_with_pdf.actions.files.prod_service import (
+    transcribe as prod_transcribe,
+)
+from main_app.domain.work_with_pdf.actions.files.prod_service import (
+    transcribe_playlist,
+)
 from main_app.domain.work_with_pdf.actions.files.run_logic import make_run_key, resolve_compute_type
 from main_app.domain.work_with_pdf.actions.files.sqlite.sqlite_repo import SqliteRunRepository
 from main_app.domain.work_with_pdf.actions.files.whisper_engine import WhisperEngine
@@ -67,6 +77,7 @@ class TxtTranscribeJob(BaseModel):
     reply: TxtReply | None = None
     delivery: TxtDelivery | None = None
     cfg: TxtCfgOverrides | None = None
+    extract_mode: str | None = None
     attempt: int = 1
     max_attempts: int = 3
 
@@ -122,8 +133,10 @@ class TxtDoneResult(BaseModel):
     error: str | None = None
     # Populated only for YouTube jobs (source_type="youtube").
     youtube_metadata: YouTubeMetadata | None = None
-    # LLM-generated summary; None when provider is disabled or call failed.
+    # LLM-generated extraction; None when provider is disabled or call failed.
     summary: str | None = None
+    # Mode used for extraction (summary/learn/commands/pipeline/tips/none).
+    extract_mode: str | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -242,11 +255,12 @@ async def _maybe_summarize(
     transcript_text: str,
     is_youtube: bool,
     provider: SummaryProvider | None,
+    prompt: str | None = None,
 ) -> str | None:
     if not is_youtube or provider is None or not transcript_text:
         return None
     truncated = transcript_text[: settings.SUMMARY_MAX_CHARS]
-    summary = await provider.summarize(truncated)
+    summary = await provider.summarize(truncated, prompt=prompt)
     return summary or None
 
 
@@ -302,18 +316,62 @@ def register_txt_consumers(router: RabbitRouter) -> None:
             async with lock:
                 target = _resolve_target(job)
                 loop = asyncio.get_running_loop()
+                job_out_dir = generate_txt_path(job.job_id).parent
 
-                res = await loop.run_in_executor(
-                    None,
-                    lambda: prod_transcribe(
-                        target=target,
-                        cfg=cfg,
-                        out_dir=generate_txt_path(job.job_id).parent,
-                        repo=repo,
-                        engine=engine,
-                        preparer=preparer,
-                    ),
-                )
+                if job.target.kind == "url" and is_playlist_url(job.target.value):
+
+                    async def _publish_progress(current: int, total: int, title: str) -> None:
+                        if job.reply:
+                            await router.broker.publish(
+                                {
+                                    "job_id": job.job_id,
+                                    "chat_id": job.reply.chat_id,
+                                    "current": current,
+                                    "total": total,
+                                    "title": title,
+                                },
+                                queue="txt.progress",
+                            )
+
+                    def on_progress(
+                        current: int,
+                        total: int,
+                        url: str,
+                        meta: YouTubeMetadata | None,
+                    ) -> None:
+                        title = (meta.title if meta else None) or url
+                        fut = asyncio.run_coroutine_threadsafe(
+                            _publish_progress(current, total, title), loop
+                        )
+                        try:
+                            fut.result(timeout=5)
+                        except Exception as e:
+                            logger.warning("[TXT] progress publish failed: %s", e)
+
+                    res = await loop.run_in_executor(
+                        None,
+                        lambda: transcribe_playlist(
+                            playlist_url=job.target.value,
+                            cfg=cfg,
+                            out_dir=job_out_dir,
+                            repo=repo,
+                            engine=engine,
+                            preparer=preparer,
+                            on_progress=on_progress,
+                        ),
+                    )
+                else:
+                    res = await loop.run_in_executor(
+                        None,
+                        lambda: prod_transcribe(
+                            target=target,
+                            cfg=cfg,
+                            out_dir=job_out_dir,
+                            repo=repo,
+                            engine=engine,
+                            preparer=preparer,
+                        ),
+                    )
 
                 if res.status != "ok":
                     raise RuntimeError(
@@ -326,15 +384,19 @@ def register_txt_consumers(router: RabbitRouter) -> None:
                 is_youtube = job.target.kind == "url" and bool(res.youtube_metadata)
                 transcript_text = final_txt_path.read_text(encoding="utf-8")
 
+                extract_mode = job.extract_mode or DEFAULT_MODE
+                prompt_template = EXTRACT_PROMPTS.get(extract_mode)
+                extraction_cache_key = f"{run_key}:{extract_mode}"
+
                 summary: str | None = None
-                if is_youtube:
-                    summary = repo.get_summary(run_key)
+                if is_youtube and prompt_template is not None:
+                    summary = repo.get_summary(extraction_cache_key)
                     if summary is None and summary_provider is not None:
                         summary = await _maybe_summarize(
-                            transcript_text, is_youtube, summary_provider
+                            transcript_text, is_youtube, summary_provider, prompt=prompt_template
                         )
                         if summary:
-                            repo.save_summary(run_key, summary)
+                            repo.save_summary(extraction_cache_key, summary)
 
                 wall_time = round(time.time() - started, 3)
 
@@ -349,6 +411,7 @@ def register_txt_consumers(router: RabbitRouter) -> None:
                         cached=res.cached,
                         youtube_metadata=res.youtube_metadata,
                         summary=summary,
+                        extract_mode=extract_mode if is_youtube else None,
                     ),
                 )
 

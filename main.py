@@ -1,4 +1,4 @@
-# /home/dmitriy/PycharmProjects/FastAPI-Learning/main.py
+# /home/dmitriy/PycharmProjects/PDFnik-Backend/main.py
 # repo: PDFnik-Backend
 
 import uvicorn

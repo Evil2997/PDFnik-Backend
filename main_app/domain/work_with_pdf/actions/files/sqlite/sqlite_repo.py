@@ -52,7 +52,7 @@ class SqliteRunRepository(RunRepository):
                 "SELECT summary FROM runs WHERE run_key = ?",
                 (run_key,),
             ).fetchone()
-            if row is None:
+            if row is None or row[0] is None:
                 return None
             return str(row[0])
 

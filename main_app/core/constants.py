@@ -1,4 +1,4 @@
-# /home/dmitriy/PycharmProjects/FastAPI-Learning/main_app/core/constants.py
+# /home/dmitriy/PycharmProjects/PDFnik-Backend/main_app/core/constants.py
 # repo: PDFnik-Backend
 
 import pathlib

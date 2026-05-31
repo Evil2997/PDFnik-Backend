@@ -11,14 +11,15 @@ class OllamaSummaryProvider:
         self._base_url = base_url.rstrip("/")
         self._model = model
 
-    async def summarize(self, text: str) -> str:
+    async def summarize(self, text: str, prompt: str | None = None) -> str:
         try:
+            content = (prompt or SUMMARY_PROMPT).format(text=text)
             async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
                 resp = await client.post(
                     f"{self._base_url}/api/generate",
                     json={
                         "model": self._model,
-                        "prompt": SUMMARY_PROMPT.format(text=text),
+                        "prompt": content,
                         "stream": False,
                     },
                 )

@@ -1,4 +1,4 @@
-# /home/dmitriy/PycharmProjects/FastAPI-Learning/tests/unit/test_health.py
+# /home/dmitriy/PycharmProjects/PDFnik-Backend/tests/unit/test_health.py
 # repo: PDFnik-Backend
 
 """

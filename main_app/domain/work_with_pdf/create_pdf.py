@@ -1,4 +1,4 @@
-# /home/dmitriy/PycharmProjects/FastAPI-Learning/main_app/domain/work_with_pdf/create_pdf.py
+# /home/dmitriy/PycharmProjects/PDFnik-Backend/main_app/domain/work_with_pdf/create_pdf.py
 # repo: PDFnik-Backend
 
 """

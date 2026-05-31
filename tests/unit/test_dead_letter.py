@@ -1,4 +1,4 @@
-# /home/dmitriy/PycharmProjects/FastAPI-Learning/tests/unit/test_dead_letter.py
+# /home/dmitriy/PycharmProjects/PDFnik-Backend/tests/unit/test_dead_letter.py
 # repo: PDFnik-Backend
 
 """

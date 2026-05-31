@@ -1,4 +1,4 @@
-# /home/dmitriy/PycharmProjects/FastAPI-Learning/main_app/domain/work_with_pdf/models/image_render_options.py
+# /home/dmitriy/PycharmProjects/PDFnik-Backend/main_app/domain/work_with_pdf/models/image_render_options.py
 # repo: PDFnik-Backend
 
 from typing import Literal

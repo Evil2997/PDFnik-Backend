@@ -1,4 +1,4 @@
-# /home/dmitriy/PycharmProjects/FastAPI-Learning/main_app/domain/work_with_pdf/pdf_service.py
+# /home/dmitriy/PycharmProjects/PDFnik-Backend/main_app/domain/work_with_pdf/pdf_service.py
 # repo: PDFnik-Backend
 
 import asyncio

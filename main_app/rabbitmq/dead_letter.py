@@ -1,4 +1,4 @@
-# /home/dmitriy/PycharmProjects/FastAPI-Learning/main_app/rabbitmq/dead_letter.py
+# /home/dmitriy/PycharmProjects/PDFnik-Backend/main_app/rabbitmq/dead_letter.py
 # repo: PDFnik-Backend
 
 """

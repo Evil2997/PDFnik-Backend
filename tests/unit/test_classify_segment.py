@@ -1,4 +1,4 @@
-# /home/dmitriy/PycharmProjects/FastAPI-Learning/tests/unit/test_classify_segment.py
+# /home/dmitriy/PycharmProjects/PDFnik-Backend/tests/unit/test_classify_segment.py
 # repo: PDFnik-Backend
 
 """

@@ -1,4 +1,4 @@
-# /home/dmitriy/PycharmProjects/FastAPI-Learning/tests/unit/test_pdf_orders_dlq.py
+# /home/dmitriy/PycharmProjects/PDFnik-Backend/tests/unit/test_pdf_orders_dlq.py
 # repo: PDFnik-Backend
 
 """
