@@ -25,6 +25,7 @@ from main_app.domain.work_with_pdf.actions.files.prod_service import (
     transcribe as prod_transcribe,
 )
 from main_app.domain.work_with_pdf.actions.files.prod_service import (
+    transcribe_batch,
     transcribe_playlist,
 )
 from main_app.domain.work_with_pdf.actions.files.run_logic import make_run_key, resolve_compute_type
@@ -39,7 +40,7 @@ from main_app.domain.work_with_pdf.actions.files.whisper_engine import WhisperEn
 class TxtTarget(BaseModel):
     model_config = ConfigDict(frozen=True)
 
-    kind: Literal["storage_key", "url"]
+    kind: Literal["storage_key", "url", "url_batch"]
     value: str
 
 
@@ -318,7 +319,10 @@ def register_txt_consumers(router: RabbitRouter) -> None:
                 loop = asyncio.get_running_loop()
                 job_out_dir = generate_txt_path(job.job_id).parent
 
-                if job.target.kind == "url" and is_playlist_url(job.target.value):
+                is_playlist = job.target.kind == "url" and is_playlist_url(job.target.value)
+                is_batch = job.target.kind == "url_batch"
+
+                if is_playlist or is_batch:
 
                     async def _publish_progress(current: int, total: int, title: str) -> None:
                         if job.reply:
@@ -369,19 +373,35 @@ def register_txt_consumers(router: RabbitRouter) -> None:
                         except Exception as e:
                             logger.warning("[TXT] cache summary publish failed: %s", e)
 
-                    res = await loop.run_in_executor(
-                        None,
-                        lambda: transcribe_playlist(
-                            playlist_url=job.target.value,
-                            cfg=cfg,
-                            out_dir=job_out_dir,
-                            repo=repo,
-                            engine=engine,
-                            preparer=preparer,
-                            on_progress=on_progress,
-                            on_cache_summary=on_cache_summary,
-                        ),
-                    )
+                    if is_playlist:
+                        res = await loop.run_in_executor(
+                            None,
+                            lambda: transcribe_playlist(
+                                playlist_url=job.target.value,
+                                cfg=cfg,
+                                out_dir=job_out_dir,
+                                repo=repo,
+                                engine=engine,
+                                preparer=preparer,
+                                on_progress=on_progress,
+                                on_cache_summary=on_cache_summary,
+                            ),
+                        )
+                    else:
+                        batch_urls = [u for u in job.target.value.split("\n") if u.strip()]
+                        res = await loop.run_in_executor(
+                            None,
+                            lambda: transcribe_batch(
+                                video_urls=batch_urls,
+                                cfg=cfg,
+                                out_dir=job_out_dir,
+                                repo=repo,
+                                engine=engine,
+                                preparer=preparer,
+                                on_progress=on_progress,
+                                on_cache_summary=on_cache_summary,
+                            ),
+                        )
                 else:
                     res = await loop.run_in_executor(
                         None,
@@ -403,7 +423,7 @@ def register_txt_consumers(router: RabbitRouter) -> None:
                 final_txt_path = _persist_txt_result(res.output_txt, job.job_id)
                 txt_storage_key = final_txt_path.relative_to(FILES_ROOT.resolve()).as_posix()
 
-                is_youtube = job.target.kind == "url" and bool(res.youtube_metadata)
+                is_youtube = job.target.kind in ("url", "url_batch") and bool(res.youtube_metadata)
                 transcript_text = final_txt_path.read_text(encoding="utf-8")
 
                 extract_mode = job.extract_mode or DEFAULT_MODE

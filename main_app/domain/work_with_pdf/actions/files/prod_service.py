@@ -87,27 +87,26 @@ def transcribe(
     return res
 
 
-def transcribe_playlist(
+def _transcribe_url_list(
     *,
-    playlist_url: str,
-    cfg: TranscribeConfig,
+    video_urls: list[str],
     out_dir: Path,
+    cfg: TranscribeConfig,
     repo: RunRepository,
     engine: TranscribeEngine,
     preparer: TargetPreparer,
     on_progress: Callable[[int, int, str, YouTubeMetadata | None], None] | None = None,
     on_cache_summary: Callable[[int, int], None] | None = None,
+    head_metadata: YouTubeMetadata | None,
+    result_run_key: str,
+    result_target_id: str,
+    error_label: str,
 ) -> RunResult:
-    out_dir = out_dir.resolve()
-    out_dir.mkdir(parents=True, exist_ok=True)
-
-    video_urls = fetch_playlist_video_urls(playlist_url)
-    playlist_meta = fetch_playlist_metadata(playlist_url)
-
     sections: list[str] = []
     total_wall = 0.0
     total_duration = 0.0
     cached_streak = 0
+    first_video_meta: YouTubeMetadata | None = None
 
     for i, url in enumerate(video_urls):
         video_dir = out_dir / f"video_{i:03d}"
@@ -135,6 +134,9 @@ def transcribe_playlist(
             header = _format_video_section_header(prepared.youtube_metadata, i)
             sections.append(f"{header}\n\n{text}")
 
+            if first_video_meta is None:
+                first_video_meta = prepared.youtube_metadata
+
             if res.cached:
                 cached_streak += 1
             else:
@@ -154,7 +156,7 @@ def transcribe_playlist(
             on_cache_summary(cached_streak, len(video_urls))
 
     if not sections:
-        raise RuntimeError(f"All {len(video_urls)} videos in playlist failed: {playlist_url}")
+        raise RuntimeError(f"All {len(video_urls)} videos failed: {error_label}")
 
     combined_text = "\n\n---\n\n".join(sections)
     combined_txt = out_dir / "playlist_combined.txt"
@@ -173,11 +175,76 @@ def transcribe_playlist(
     )
 
     return RunResult(
-        run_key=f"playlist_{_hash(playlist_url)}",
-        target_id=f"playlist_{_hash(playlist_url)}",
+        run_key=result_run_key,
+        target_id=result_target_id,
         output_txt=combined_txt,
         metrics=metrics,
         cached=False,
         status="ok",
-        youtube_metadata=playlist_meta,
+        youtube_metadata=head_metadata or first_video_meta,
+    )
+
+
+def transcribe_playlist(
+    *,
+    playlist_url: str,
+    cfg: TranscribeConfig,
+    out_dir: Path,
+    repo: RunRepository,
+    engine: TranscribeEngine,
+    preparer: TargetPreparer,
+    on_progress: Callable[[int, int, str, YouTubeMetadata | None], None] | None = None,
+    on_cache_summary: Callable[[int, int], None] | None = None,
+) -> RunResult:
+    out_dir = out_dir.resolve()
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    video_urls = fetch_playlist_video_urls(playlist_url)
+    playlist_meta = fetch_playlist_metadata(playlist_url)
+
+    return _transcribe_url_list(
+        video_urls=video_urls,
+        out_dir=out_dir,
+        cfg=cfg,
+        repo=repo,
+        engine=engine,
+        preparer=preparer,
+        on_progress=on_progress,
+        on_cache_summary=on_cache_summary,
+        head_metadata=playlist_meta,
+        result_run_key=f"playlist_{_hash(playlist_url)}",
+        result_target_id=f"playlist_{_hash(playlist_url)}",
+        error_label=playlist_url,
+    )
+
+
+def transcribe_batch(
+    *,
+    video_urls: list[str],
+    cfg: TranscribeConfig,
+    out_dir: Path,
+    repo: RunRepository,
+    engine: TranscribeEngine,
+    preparer: TargetPreparer,
+    on_progress: Callable[[int, int, str, YouTubeMetadata | None], None] | None = None,
+    on_cache_summary: Callable[[int, int], None] | None = None,
+) -> RunResult:
+    out_dir = out_dir.resolve()
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    batch_hash = _hash("|".join(sorted(video_urls)))
+
+    return _transcribe_url_list(
+        video_urls=video_urls,
+        out_dir=out_dir,
+        cfg=cfg,
+        repo=repo,
+        engine=engine,
+        preparer=preparer,
+        on_progress=on_progress,
+        on_cache_summary=on_cache_summary,
+        head_metadata=None,
+        result_run_key=f"batch_{batch_hash}",
+        result_target_id=f"batch_{batch_hash}",
+        error_label=f"batch({len(video_urls)} videos)",
     )
