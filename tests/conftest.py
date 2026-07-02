@@ -38,6 +38,13 @@ def _ensure_stubs() -> None:
     pdfnik_contracts.pdf_content is ALWAYS replaced — the package may be
     installed as a real dependency but with a different version that is
     missing attributes required by the tests (e.g. PdfOrder).
+
+    pdfnik_contracts.txt_content is NOT stubbed — tests rely on its real
+    pydantic validation/computed-property behavior (YouTubeMetadata.duration_str,
+    TxtTarget frozen fields, TxtTranscribeJob.normalize_legacy_payload, etc).
+    The real `pdfnik_contracts` package is imported first (instead of being
+    replaced outright) so its __path__ stays intact and `txt_content` can
+    still be resolved as a real submodule after pdf_content is overridden.
     """
     optional_stubs = [
         "faster_whisper",
@@ -84,10 +91,13 @@ def _ensure_stubs() -> None:
     # faster_whisper.WhisperModel stub
     sys.modules["faster_whisper"].WhisperModel = MagicMock
 
-    # pdfnik_contracts is always replaced regardless of whether the real
-    # package is installed — the installed version may be incomplete or
-    # have a different public API than what tests expect.
-    pc_root = _make_stub("pdfnik_contracts")
+    # pdfnik_contracts.pdf_content is always replaced regardless of whether
+    # the real package is installed — the installed version may be
+    # incomplete or have a different public API than what tests expect.
+    try:
+        import pdfnik_contracts as pc_root
+    except ImportError:
+        pc_root = _make_stub("pdfnik_contracts")
     pc = _make_stub("pdfnik_contracts.pdf_content")
     pc_root.pdf_content = pc
 

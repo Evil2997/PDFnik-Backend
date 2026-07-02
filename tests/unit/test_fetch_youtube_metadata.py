@@ -161,7 +161,7 @@ class TestPartialMetadata:
             meta = fetch_youtube_metadata("https://x.com")
 
         assert meta.duration_sec is None
-        assert meta.duration_str == "неизвестно"
+        assert meta.duration_str == "unknown"
 
 
 # ---------------------------------------------------------------------------

@@ -35,12 +35,12 @@ class TestDurationStr:
 
     def test_zero_seconds(self):
         m = YouTubeMetadata(url="https://x.com", duration_sec=0)
-        # 0 — falsy, так что возвращаем "неизвестно"
-        assert m.duration_str == "неизвестно"
+        # 0 is falsy, so we return "unknown"
+        assert m.duration_str == "unknown"
 
     def test_none_duration(self):
         m = YouTubeMetadata(url="https://x.com", duration_sec=None)
-        assert m.duration_str == "неизвестно"
+        assert m.duration_str == "unknown"
 
     def test_less_than_minute(self):
         m = YouTubeMetadata(url="https://x.com", duration_sec=45)

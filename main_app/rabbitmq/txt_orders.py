@@ -1,10 +1,15 @@
 import asyncio
 import hashlib
 import time
-from typing import Any, Literal
+from typing import Any
 
 from faststream.rabbit.fastapi import RabbitRouter
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pdfnik_contracts.txt_content import (
+    TxtCfgOverrides,
+    TxtDoneResult,
+    TxtReply,
+    TxtTranscribeJob,
+)
 
 from main_app.core.constants import FILES_ROOT, RUNS_DB_PATH
 from main_app.core.logger import logger
@@ -31,114 +36,6 @@ from main_app.domain.work_with_pdf.actions.files.prod_service import (
 from main_app.domain.work_with_pdf.actions.files.run_logic import make_run_key, resolve_compute_type
 from main_app.domain.work_with_pdf.actions.files.sqlite.sqlite_repo import SqliteRunRepository
 from main_app.domain.work_with_pdf.actions.files.whisper_engine import WhisperEngine
-
-# ---------------------------------------------------------------------------
-# Request models
-# ---------------------------------------------------------------------------
-
-
-class TxtTarget(BaseModel):
-    model_config = ConfigDict(frozen=True)
-
-    kind: Literal["storage_key", "url", "url_batch"]
-    value: str
-
-
-class TxtReply(BaseModel):
-    model_config = ConfigDict(frozen=True)
-
-    chat_id: int
-    reply_to_message_id: int | None = None
-
-
-class TxtDelivery(BaseModel):
-    model_config = ConfigDict(frozen=True)
-
-    source_type: str | None = None
-    mode: str | None = None
-
-
-class TxtCfgOverrides(BaseModel):
-    model_config = ConfigDict(frozen=True)
-
-    model: str | None = None
-    device: str | None = None
-    compute_type: str | None = None
-    threads: int | None = Field(default=None, ge=1)
-    workers: int | None = Field(default=None, ge=1)
-    beam_size: int | None = Field(default=None, ge=1)
-    patience: float | None = Field(default=None, ge=0.0)
-    vad: bool | None = None
-    lang: str | None = None
-
-
-class TxtTranscribeJob(BaseModel):
-    job_id: str
-    target: TxtTarget
-    reply: TxtReply | None = None
-    delivery: TxtDelivery | None = None
-    cfg: TxtCfgOverrides | None = None
-    extract_mode: str | None = None
-    attempt: int = 1
-    max_attempts: int = 3
-
-    @model_validator(mode="before")
-    @classmethod
-    def normalize_legacy_payload(cls, data: Any) -> Any:
-        if not isinstance(data, dict):
-            return data
-
-        payload = dict(data)
-
-        if payload.get("target") is None:
-            storage_key = payload.get("storage_key")
-            input_url = payload.get("input_url")
-
-            if storage_key:
-                payload["target"] = {"kind": "storage_key", "value": storage_key}
-            elif input_url:
-                payload["target"] = {"kind": "url", "value": input_url}
-
-        if payload.get("reply") is None:
-            chat_id = payload.get("chat_id")
-            reply_to_message_id = payload.get("reply_to_message_id")
-
-            if chat_id is not None:
-                payload["reply"] = {
-                    "chat_id": chat_id,
-                    "reply_to_message_id": reply_to_message_id,
-                }
-
-        if payload.get("delivery") is None:
-            source_type = payload.get("source_type")
-            mode = payload.get("mode")
-
-            if source_type is not None or mode is not None:
-                payload["delivery"] = {"source_type": source_type, "mode": mode}
-
-        return payload
-
-
-# ---------------------------------------------------------------------------
-# Result model
-# ---------------------------------------------------------------------------
-
-
-class TxtDoneResult(BaseModel):
-    job_id: str
-    status: Literal["ok", "error"]
-    txt_storage_key: str | None = None
-    reply: TxtReply | None = None
-    delivery: TxtDelivery | None = None
-    cached: bool | None = None
-    error: str | None = None
-    # Populated only for YouTube jobs (source_type="youtube").
-    youtube_metadata: YouTubeMetadata | None = None
-    # LLM-generated extraction; None when provider is disabled or call failed.
-    summary: str | None = None
-    # Mode used for extraction (summary/learn/commands/pipeline/tips/none).
-    extract_mode: str | None = None
-
 
 # ---------------------------------------------------------------------------
 # Internal helpers
@@ -204,7 +101,7 @@ def _resolve_storage_path(storage_key: str) -> str:
 
 def _resolve_target(job: TxtTranscribeJob) -> str:
     if job.target.kind == "url":
-        return job.target.value
+        return str(job.target.value)
     return _resolve_storage_path(job.target.value)
 
 

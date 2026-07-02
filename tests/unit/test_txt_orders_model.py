@@ -9,8 +9,7 @@ Coverage includes:
 """
 
 import pytest
-
-from main_app.rabbitmq.txt_orders import (
+from pdfnik_contracts.txt_content import (
     TxtCfgOverrides,
     TxtDoneResult,
     TxtReply,
@@ -114,12 +113,12 @@ class TestNormalizeLegacyPayload:
                 "storage_key": "x.wav",
                 "chat_id": 400,
                 "source_type": "video",
-                "mode": "fast",
+                "mode": "document",
             }
         )
         assert job.delivery is not None
         assert job.delivery.source_type == "video"
-        assert job.delivery.mode == "fast"
+        assert job.delivery.mode == "document"
 
     def test_new_format_passes_through(self):
         job = self._make_job(
