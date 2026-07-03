@@ -57,7 +57,8 @@ def _run_migration(conn: sqlite3.Connection, existing_cols: list[str]) -> None:
         copy_cols.append("created_at")
 
     cols_str = ", ".join(copy_cols)
-    conn.execute(f"INSERT INTO runs ({cols_str}) SELECT {cols_str} FROM runs_old")
+    # Column names are hardcoded literals, not user input - see copy_cols above.
+    conn.execute(f"INSERT INTO runs ({cols_str}) SELECT {cols_str} FROM runs_old")  # nosec B608
     conn.execute("DROP TABLE runs_old")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_runs_status ON runs(status)")
 
