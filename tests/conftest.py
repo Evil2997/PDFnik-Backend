@@ -11,12 +11,21 @@ Run a single group:
     uv run pytest tests/unit/test_run_logic.py -v
 """
 
+import os
 import sys
 from pathlib import Path
 from types import ModuleType
 from unittest.mock import MagicMock
 
 import pytest
+
+# ---------------------------------------------------------------------------
+# Settings() is instantiated at import time in main_app.core.settings and
+# requires RABBITMQ_URL. Provide a dummy default so tests run without manual
+# env exports; a real env var (e.g. in CI) still takes precedence.
+# ---------------------------------------------------------------------------
+
+os.environ.setdefault("RABBITMQ_URL", "amqp://guest:guest@localhost/")  # pragma: allowlist secret
 
 # ---------------------------------------------------------------------------
 # Module stubs for heavy dependencies not available in the test environment.
