@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 
 def _hash(text: str) -> str:
-    return hashlib.sha1(text.encode("utf-8")).hexdigest()[:12]
+    return hashlib.sha1(text.encode("utf-8"), usedforsecurity=False).hexdigest()[:12]
 
 
 def _format_video_section_header(meta: YouTubeMetadata | None, index: int) -> str:

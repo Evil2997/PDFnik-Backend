@@ -41,7 +41,7 @@ def make_run_key(target_id: str, cfg: TranscribeConfig, compute_type: str) -> st
 
 
 def _stable_id_from_run_key(run_key: str, n: int = 10) -> str:
-    return hashlib.sha1(run_key.encode("utf-8")).hexdigest()[:n]
+    return hashlib.sha1(run_key.encode("utf-8"), usedforsecurity=False).hexdigest()[:n]
 
 
 def txt_name_for_run(base_name: str, run_key: str) -> str:

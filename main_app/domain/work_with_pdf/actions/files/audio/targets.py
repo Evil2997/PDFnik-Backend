@@ -21,7 +21,7 @@ _DESCRIPTION_MAX_LEN = 500
 
 
 def _hash(text: str) -> str:
-    return hashlib.sha1(text.encode("utf-8")).hexdigest()[:12]
+    return hashlib.sha1(text.encode("utf-8"), usedforsecurity=False).hexdigest()[:12]
 
 
 def is_url(target: str) -> bool:

@@ -8,6 +8,6 @@ from main_app.core.constants import PDF_OUTPUT_DIR
 def generate_pdf_path(chat_id: int) -> pathlib.Path:
     # база для хеша: chat_id + текущие миллисекунды
     base = f"{chat_id}_{int(time.time() * 1000)}"
-    hash_suffix = hashlib.md5(base.encode()).hexdigest()[:6]
+    hash_suffix = hashlib.md5(base.encode(), usedforsecurity=False).hexdigest()[:6]
     filename = f"{chat_id}_{hash_suffix}.pdf"
     return PDF_OUTPUT_DIR / filename

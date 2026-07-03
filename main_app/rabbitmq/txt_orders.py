@@ -46,7 +46,7 @@ _inflight_locks: dict[str, asyncio.Lock] = {}
 
 
 def _hash(text: str) -> str:
-    return hashlib.sha1(text.encode("utf-8")).hexdigest()[:12]
+    return hashlib.sha1(text.encode("utf-8"), usedforsecurity=False).hexdigest()[:12]
 
 
 def _build_cfg(overrides: TxtCfgOverrides | None) -> TranscribeConfig:
