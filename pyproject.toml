@@ -5,13 +5,13 @@ description = "PDF generation and audio transcription service for PDFnik ecosyst
 requires-python = ">=3.13"
 
 dependencies = [
-    "fastapi==0.127.1",
+    "fastapi==0.139.0",
     "uvicorn==0.40.0",
     "pillow==12.2.0",
     "reportlab==4.4.7",
     "faster-whisper==1.2.1",
     "yt-dlp==2026.6.9",
-    "faststream[rabbit]==0.6.3",
+    "faststream[rabbit]==0.6.7",
     "pydantic==2.11.10",
     "pydantic-settings==2.11.0",
     "pdfnik-schemes @ git+https://github.com/Evil2997/PDFnik-Schemes@v1.2.1",
