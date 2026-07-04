@@ -127,9 +127,7 @@ def _is_heading(segment: PdfRichText) -> bool:
     t = segment.text.strip()
     if not t:
         return False
-    if len(t) <= 60 and not t.endswith(".") and (t.endswith(":") or t.isupper()):
-        return True
-    return False
+    return len(t) <= 60 and not t.endswith(".") and (t.endswith(":") or t.isupper())
 
 
 def _looks_like_field_line(s: str) -> bool:
@@ -151,9 +149,9 @@ def _is_signature_segment(seg: PdfRichText) -> bool:
     if any(m in t for m in _SIGNATURE_MARKERS):
         return True
     lines = [x.strip() for x in seg.text.split("\n") if x.strip()]
-    if 2 <= len(lines) <= 4 and any(re.search(r"\b\d{1,2}\.\d{1,2}\.\d{4}\b", ln) for ln in lines):
-        return True
-    return False
+    return 2 <= len(lines) <= 4 and any(
+        re.search(r"\b\d{1,2}\.\d{1,2}\.\d{4}\b", ln) for ln in lines
+    )
 
 
 def _try_split_price_line(line: str) -> tuple[str, str] | None:
@@ -274,7 +272,7 @@ def _build_blocks_from_segment(seg: PdfRichText) -> list[PdfBlock]:
             split = _try_split_price_line(raw)
             if split is None:
                 return [PdfParagraphBlock(content=seg)]
-            name_s, price_s = split
+            _name_s, price_s = split
 
             idx = raw.find(price_s)
             if idx <= 0:

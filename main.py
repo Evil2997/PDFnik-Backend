@@ -36,4 +36,4 @@ logger.info("Routers included")
 
 if __name__ == "__main__":
     logger.info("Running uvicorn on 0.0.0.0:8000")
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=8000)  # nosec B104 - binds all interfaces inside the container by design
