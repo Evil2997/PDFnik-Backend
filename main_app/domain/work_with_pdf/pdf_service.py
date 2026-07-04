@@ -18,7 +18,7 @@ async def generate_pdf_for_order(order: PdfOrder) -> BotDocument:
 
     blocks: list[PdfBlock] = order.items
 
-    logger.info(f"Order content for chat_id={chat_id}: " f"{len(blocks)} blocks")
+    logger.info(f"Order content for chat_id={chat_id}: {len(blocks)} blocks")
 
     pdf_path: pathlib.Path = generate_pdf_path(chat_id)
     logger.info(f"PDF path for chat_id={chat_id}: {pdf_path}")

@@ -136,9 +136,9 @@ class TestPrepareTargetFile:
                 return_value=42.0,
             ),
         ):
-            mock_norm.side_effect = lambda src, dst: dst.parent.mkdir(
-                parents=True, exist_ok=True
-            ) or dst.write_bytes(b"RIFF")
+            mock_norm.side_effect = lambda src, dst: (
+                dst.parent.mkdir(parents=True, exist_ok=True) or dst.write_bytes(b"RIFF")
+            )
             result = prepare_target(str(src), work_dir=tmp_dir)
 
         assert result.target == str(src)
