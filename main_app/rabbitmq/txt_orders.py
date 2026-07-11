@@ -1,6 +1,7 @@
 import asyncio
 import hashlib
 import time
+from pathlib import Path
 from typing import Any
 
 from faststream.rabbit.fastapi import RabbitRouter
@@ -118,7 +119,7 @@ def _run_key_for_job(job: TxtTranscribeJob, cfg: TranscribeConfig) -> str:
     return make_run_key(target_id, cfg, compute_type)
 
 
-def _persist_txt_result(source_txt_path, job_id: str):
+def _persist_txt_result(source_txt_path: Path, job_id: str) -> Path:
     dst_path = generate_txt_path(job_id).resolve()
     dst_path.parent.mkdir(parents=True, exist_ok=True)
     text = source_txt_path.read_text(encoding="utf-8")
@@ -174,7 +175,7 @@ def register_txt_consumers(router: RabbitRouter) -> None:
     summary_provider = get_summary_provider(settings)
 
     @router.subscriber("txt.transcribe")
-    async def handle_txt_transcribe(data: dict[str, Any]):
+    async def handle_txt_transcribe(data: dict[str, Any]) -> None:
         started = time.time()
 
         try:

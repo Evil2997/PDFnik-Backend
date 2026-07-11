@@ -2,6 +2,7 @@ import hashlib
 import json
 import logging
 from pathlib import Path
+from typing import Any
 
 from main_app.domain.work_with_pdf.actions.files.audio.media import get_audio_duration_sec
 from main_app.domain.work_with_pdf.actions.files.audio.process import run_cmd
@@ -50,7 +51,7 @@ def fetch_youtube_metadata(url: str) -> YouTubeMetadata | None:
                 url,
             ]
         )
-        data: dict = json.loads(result.stdout)
+        data: dict[str, Any] = json.loads(result.stdout)
 
         description = data.get("description") or ""
         if len(description) > _DESCRIPTION_MAX_LEN:
@@ -240,7 +241,7 @@ def fetch_playlist_metadata(playlist_url: str) -> YouTubeMetadata | None:
                 playlist_url,
             ]
         )
-        data: dict = json.loads(result.stdout)
+        data: dict[str, Any] = json.loads(result.stdout)
         return YouTubeMetadata(
             url=playlist_url,
             title=data.get("title"),

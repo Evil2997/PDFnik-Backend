@@ -1,5 +1,4 @@
-# /home/dmitriy/PycharmProjects/PDFnik-Backend/main_app/rabbitmq/pdf_orders.py
-# repo: PDFnik-Backend
+from typing import Any
 
 from faststream.rabbit.fastapi import RabbitRouter
 from pdfnik_contracts.pdf_content import PdfOrder
@@ -10,7 +9,7 @@ from main_app.domain.work_with_pdf.pdf_service import generate_pdf_for_order
 
 def register_pdf_consumers(router: RabbitRouter) -> None:
     @router.subscriber("pdf.generate")
-    async def handle_pdf_generate(data: dict) -> None:
+    async def handle_pdf_generate(data: dict[str, Any]) -> None:
         logger.info("event=pdf_generate_received chat_id=%s", data.get("chat_id"))
 
         try:

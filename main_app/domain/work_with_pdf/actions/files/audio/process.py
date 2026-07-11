@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 def run_cmd(
     cmd: Sequence[str], *, capture_output: bool = True, text: bool = True
-) -> subprocess.CompletedProcess:
+) -> subprocess.CompletedProcess[str]:
     cmd_list = list(cmd)
     logger.debug("Run cmd: %s", " ".join(cmd_list))
 

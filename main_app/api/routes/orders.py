@@ -6,7 +6,7 @@ router = APIRouter()
 
 
 @router.post("/order")
-async def make_order(name: str):
+async def make_order(name: str) -> dict[str, str]:
     await rabbit_router.broker.publish(
         message=f"Order {name}",
         queue="orders_http",
