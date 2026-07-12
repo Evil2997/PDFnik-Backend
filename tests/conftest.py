@@ -91,8 +91,12 @@ def _ensure_stubs() -> None:
     sys.modules["reportlab.pdfgen.canvas"].Canvas = MagicMock
     sys.modules["reportlab.pdfgen"].canvas = sys.modules["reportlab.pdfgen.canvas"]
 
-    # PIL.Image and PIL.ImageOps need open and exif_transpose
+    # PIL.Image and PIL.ImageOps need open and exif_transpose.
+    # Image is also referenced as a type annotation (Image.Image) in
+    # application code, so the stub needs an attribute of that name too -
+    # otherwise unquoted annotations blow up with AttributeError at import.
     sys.modules["PIL.Image"].open = MagicMock()
+    sys.modules["PIL.Image"].Image = MagicMock
     sys.modules["PIL.ImageOps"].exif_transpose = MagicMock()
     sys.modules["PIL"].Image = sys.modules["PIL.Image"]
     sys.modules["PIL"].ImageOps = sys.modules["PIL.ImageOps"]

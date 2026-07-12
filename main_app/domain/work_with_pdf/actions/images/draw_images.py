@@ -6,6 +6,7 @@ from reportlab.lib.utils import ImageReader
 from reportlab.pdfgen import canvas
 
 from main_app.core.logger import logger
+from main_app.domain.work_with_pdf.models.draw_size import DrawSize
 from main_app.domain.work_with_pdf.models.image_render_options import ImageRenderOptions
 
 
@@ -62,13 +63,14 @@ def draw_images(
                     img = img.rotate(90, expand=True)
                 width_px, height_px = img.size
 
-            draw_w, draw_h = _compute_draw_size_contain(
+            draw_size = _compute_draw_size_contain(
                 width_px=width_px,
                 height_px=height_px,
                 max_w=max_w,
                 max_h=max_h,
                 allow_upscale=options.allow_upscale,
             )
+            draw_w, draw_h = draw_size.draw_w, draw_size.draw_h
 
             # (Optional) Resample large images to a reasonable DPI.
             # By default, resample_large_images=False → this block is skipped.
@@ -117,14 +119,14 @@ def _compute_draw_size_contain(
     max_w: float,
     max_h: float,
     allow_upscale: bool,
-) -> tuple[float, float]:
+) -> DrawSize:
     """
     Calculates dimensions for the 'contain' mode:
     the image is scaled down to fit entirely within (max_w, max_h),
     while preserving its aspect ratio.
     """
     if width_px <= 0 or height_px <= 0:
-        return 0.0, 0.0
+        return DrawSize(draw_w=0.0, draw_h=0.0)
 
     scale_w = max_w / float(width_px)
     scale_h = max_h / float(height_px)
@@ -133,9 +135,7 @@ def _compute_draw_size_contain(
     if not allow_upscale:
         scale = min(scale, 1.0)
 
-    draw_w = width_px * scale
-    draw_h = height_px * scale
-    return draw_w, draw_h
+    return DrawSize(draw_w=width_px * scale, draw_h=height_px * scale)
 
 
 def _is_landscape(image_path: Path) -> bool:
@@ -178,13 +178,14 @@ def draw_image_pair(
             with Image.open(img_path) as im_raw:
                 img = ImageOps.exif_transpose(im_raw).convert("RGB")
             width_px, height_px = img.size
-            draw_w, draw_h = _compute_draw_size_contain(
+            draw_size = _compute_draw_size_contain(
                 width_px=width_px,
                 height_px=height_px,
                 max_w=max_w,
                 max_h=half_h,
                 allow_upscale=options.allow_upscale,
             )
+            draw_w, draw_h = draw_size.draw_w, draw_size.draw_h
             x = (page_width - draw_w) / 2
             y = slot_tops[idx] - draw_h
             img_reader = ImageReader(img)
@@ -198,14 +199,14 @@ def draw_image_pair(
 
 
 def _maybe_resample_to_dpi(
-    img: "Image.Image",
+    img: Image.Image,
     width_px: int,
     height_px: int,
     draw_w: float,
     draw_h: float,
     max_dpi: int,
     allow_upscale: bool,
-) -> "tuple[Image.Image, int, int, float, float]":
+) -> tuple[Image.Image, int, int, float, float]:
     """
     If necessary, reduces the image to a reasonable DPI
     to avoid bloating the PDF excessively.
