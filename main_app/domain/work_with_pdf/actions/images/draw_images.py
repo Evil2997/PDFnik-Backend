@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from collections.abc import Iterable, Sequence
 from pathlib import Path
 
@@ -200,14 +198,14 @@ def draw_image_pair(
 
 
 def _maybe_resample_to_dpi(
-    img: Image.Image,
+    img: "Image.Image",
     width_px: int,
     height_px: int,
     draw_w: float,
     draw_h: float,
     max_dpi: int,
     allow_upscale: bool,
-) -> tuple[Image.Image, int, int, float, float]:
+) -> "tuple[Image.Image, int, int, float, float]":
     """
     If necessary, reduces the image to a reasonable DPI
     to avoid bloating the PDF excessively.
