@@ -37,6 +37,15 @@ class WhisperEngine:
         """
         Loads (or reloads) the model.
         WARNING: Must be called only while holding self._lock.
+
+        KNOWN GAP - per-job model override is ignored. The model name comes
+        from self.model_name (fixed at construction from
+        settings.TRANSCRIBE_MODEL); every other knob comes from cfg. So
+        TxtCfgOverrides.model has no effect, while make_run_key() does hash
+        cfg.model - two jobs differing only by model get separate cache
+        entries produced by the same model. Harmless today: the bot always
+        publishes cfg={} and never overrides the model. Fix this before
+        anything starts sending TxtCfgOverrides.model.
         """
         compute = cfg.compute_type or ("float16" if cfg.device.lower() == "cuda" else "int8")
 
