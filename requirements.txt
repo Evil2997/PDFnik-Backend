@@ -102,7 +102,7 @@ packaging==26.2
     #   onnxruntime
 pamqp==3.3.0
     # via aiormq
-pdfnik-schemes @ git+https://github.com/Evil2997/PDFnik-Schemes@cc9b77106690548a325f0ca408b749b39e6b5990
+pdfnik-schemes @ git+https://github.com/Evil2997/PDFnik-Schemes@b5be7bd253ed2cb804576feb7a3fdacca605a267
     # via pdfnik-pdf-service (pyproject.toml)
 pillow==12.2.0
     # via
