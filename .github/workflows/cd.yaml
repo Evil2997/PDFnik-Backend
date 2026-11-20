@@ -1,0 +1,89 @@
+# .github/workflows/cd.yml
+#
+# CD — запускается ТОЛЬКО на:
+#   1. push в main
+#   2. создание тега v*.*.*  (git tag v1.0.0 && git push --tags)
+#
+# Требует что CI прошёл (через needs или artifact из CI)
+# Деплой: локальный docker compose (без SSH)
+
+name: CD
+
+on:
+  push:
+    branches: [main]
+    tags:
+      - "v*.*.*"
+
+env:
+  IMAGE_NAME: pdfnik-backend
+
+jobs:
+
+  # ─────────────────────────────────────────────
+  #  DEPLOY
+  # ─────────────────────────────────────────────
+  deploy:
+    name: "Deploy"
+    runs-on: ubuntu-latest
+
+    # Защита окружения — в GitHub Settings → Environments → production
+    # Там можно поставить required reviewers (ручное подтверждение)
+    environment:
+      name: production
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Скачиваем образ собранный в CI
+      # Артефакт называется docker-image-{sha} — берём по sha текущего коммита
+      - name: Download image artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: docker-image-${{ github.sha }}
+        # Если артефакт не найден (CD запущен без CI) — job упадёт здесь
+        # Это намеренно: деплоить непроверенный образ нельзя
+
+      - name: Load Docker image
+        run: docker load < image.tar.gz
+
+      # Определяем версию для тега образа и уведомлений
+      - name: Resolve deploy version
+        id: version
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            echo "VERSION=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+            echo "IS_RELEASE=true" >> $GITHUB_OUTPUT
+          else
+            echo "VERSION=${{ github.sha }}" >> $GITHUB_OUTPUT
+            echo "IS_RELEASE=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Run deploy script
+        run: bash scripts/deploy.sh
+        env:
+          DEPLOY_VERSION: ${{ steps.version.outputs.VERSION }}
+          IMAGE_NAME: ${{ env.IMAGE_NAME }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          REDIS_URL: ${{ secrets.REDIS_URL }}
+          RABBITMQ_URL: ${{ secrets.RABBITMQ_URL }}
+
+      # Создаём GitHub Release если это тег
+      - name: Create GitHub Release
+        if: steps.version.outputs.IS_RELEASE == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: "Release ${{ github.ref_name }}"
+          generate_release_notes: true   # автогенерация changelog из коммитов
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Notify success
+        if: success()
+        run: echo "✅ Deployed ${{ steps.version.outputs.VERSION }}"
+
+      - name: Notify failure
+        if: failure()
+        run: echo "❌ Deploy FAILED for ${{ steps.version.outputs.VERSION }}"
